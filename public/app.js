@@ -255,7 +255,19 @@ async function createOnlineRoom() {
   try {
     const cfg = readConfig();
     const res = await fetch('/api/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
-    const data = await res.json(); if (!res.ok) throw new Error(data.error || '部屋を作成できませんでした。');
+    const responseText = await res.text();
+    let data;
+    try { data = JSON.parse(responseText); }
+    catch {
+      const hint = responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')
+        ? 'サーバーがJSONではなくHTMLを返しました。Cloudflareのデプロイ先・Workerログ・/api/healthを確認してください。'
+        : 'サーバーから正しいJSON応答がありませんでした。';
+      throw new Error(`${hint} (HTTP ${res.status})`);
+    }
+    if (!res.ok) {
+      const detail = data.detail ? `\n詳細: ${data.detail}` : '';
+      throw new Error(`${data.error || '部屋を作成できませんでした。'}${data.code ? ` [${data.code}]` : ''}${detail}`);
+    }
     roomCode = data.code; roomToken = data.token; playerRole = 'red';
     try { sessionStorage.setItem('egoism-room:' + roomCode, JSON.stringify({ token: roomToken, role: playerRole })); } catch {}
     $('room-code').textContent = roomCode; $('room-created').classList.remove('hidden');

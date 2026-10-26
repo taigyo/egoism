@@ -3,21 +3,41 @@ const ROOM_ID_RE = /^[A-Z0-9]{4,8}$/;
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/api/health') return json({ ok: true, service: 'egoism-room-server' });
+    if (url.pathname === '/api/health') {
+      return json({
+        ok: true, service: 'egoism-room-server',
+        bindings: { rooms: Boolean(env.ROOMS), assets: Boolean(env.ASSETS) },
+        version: 'room-api-v2'
+      });
+    }
 
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
       let input;
       try { input = await request.json(); } catch { return json({ error: '設定データを読み取れません。' }, 400); }
-      const config = normalizeConfig(input);
-      const code = randomCode();
-      const token = crypto.randomUUID();
-      const id = env.ROOMS.idFromName(code);
-      const stub = env.ROOMS.get(id);
-      const init = await stub.fetch('https://room.internal/init', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config, hostToken: token })
-      });
-      if (!init.ok) return json({ error: '部屋を初期化できませんでした。' }, 500);
-      return json({ code, token });
+      try {
+        if (!env.ROOMS) return json({ error: 'CloudflareのROOMSバインディングが見つかりません。wrangler.jsoncのDurable Objects設定を確認してください。', code: 'ROOMS_BINDING_MISSING' }, 503);
+        const config = normalizeConfig(input);
+        const code = randomCode();
+        const token = crypto.randomUUID();
+        const id = env.ROOMS.idFromName(code);
+        const stub = env.ROOMS.get(id);
+        const init = await stub.fetch('https://room.internal/init', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config, hostToken: token })
+        });
+        if (!init.ok) {
+          const detail = (await init.text()).slice(0, 300);
+          console.error('Room initialization failed', init.status, detail);
+          return json({ error: '部屋の初期化に失敗しました。CloudflareのDurable Object設定を確認してください。', code: 'ROOM_INIT_FAILED', status: init.status }, 500);
+        }
+        return json({ code, token });
+      } catch (error) {
+        console.error('Room creation failed', error);
+        return json({
+          error: '部屋を作成できませんでした。CloudflareのWorkerログを確認してください。',
+          code: error?.name || 'ROOM_CREATE_FAILED',
+          detail: String(error?.message || error).slice(0, 240)
+        }, 500);
+      }
     }
 
     const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{4,8})\/ws$/);

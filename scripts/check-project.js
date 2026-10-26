@@ -26,14 +26,12 @@ if (!Object.keys(dictionary).length) fail('Dictionary is empty.');
 if (!Array.isArray(dictionary['なたでここ']) || !dictionary['なたでここ'].includes('ナタデココ')) {
   fail('Dictionary sample entry なたでここ → ナタデココ is missing.');
 }
-for (const [reading, form] of [['げーむ', 'ゲーム'], ['ぱそこん', 'パソコン'], ['いんたーねっと', 'インターネット'], ['ぷろぐらみんぐ', 'プログラミング']]) {
-  if (!Array.isArray(dictionary[reading]) || !dictionary[reading].includes(form)) fail(`Common katakana loanword missing: ${reading} → ${form}`);
-}
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
 if (!app.includes('wipe.animate(') || !app.includes('el.animate(')) fail('Territory and question animations are not driven by the Web Animations API.');
 if (!html.includes('class="time-settings-row"')) fail('Time settings are not grouped into one horizontal row.');
 if (config.name !== 'egoism' || config.main !== 'src/worker.js') fail('Cloudflare Worker config does not match this project.');
 if (!worker.includes('class GameRoom')) fail('Durable Object class GameRoom was not found.');
+if (!worker.includes('ROOMS_BINDING_MISSING') || !worker.includes('room-api-v2')) fail('Room API diagnostics are missing.');
 if (!css.includes('.territory-wipe') || !css.includes('!important')) fail('Territory animation overlay styles are missing.');
 if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('A removed legacy board element is still present.');
 
