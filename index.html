@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f4f0e7">
+<title>ABaCu! — 言葉の押し合い</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="paper-noise" aria-hidden="true"></div>
+<header class="masthead"><a href="#home" class="wordmark" data-go="home" aria-label="ABaCu! ホーム">ABaCu<span>!</span></a><div class="masthead-right"><span class="edition">言葉遊戯・対戦篇</span><span class="volume">第 01 号</span></div></header>
+<main>
+<section id="home" class="screen active">
+  <div class="cover-grid"><div class="cover-main"><p class="kicker">THE WORD PUSH BATTLE / 言葉押合戦</p><h1>言葉で、<br>押し切れ。</h1><p class="lead">読みを見抜き、言葉を放ち、盤上の一駒を相手の陣へ押し込む。<br>語彙とひらめきの、短い真剣勝負。</p><button class="button button-dark" data-go="settings">対戦を準備する <span aria-hidden="true">↗</span></button><div class="cover-note"><span class="note-mark">※</span><p>表示された文字列に合う読みを入力。正解すると一駒が相手側へ進む。最奥へ押し込めば勝利。</p></div></div><div class="cover-side"><div class="side-label">盤面見本 / FIELD</div><div class="mini-board" aria-label="7マスの盤面"><i></i><i></i><i></i><i class="piece"></i><i></i><i></i><i></i></div><div class="side-caption">一駒をめぐる、七つの位置。</div><div class="big-index">言<br>葉</div></div></div>
+  <div class="home-bottom"><div><span class="section-number">壱</span><div><h2>遊び方</h2><p>正解すれば相手側へ一歩。相手が正解すれば、こちら側へ一歩。三歩押し込めば勝ち。</p></div></div><div><span class="section-number">弐</span><div><h2>辞書を用いる</h2><p>読みを基準に判定し、正解後に漢字・表記候補を表示。珍語や人名も候補に含まれます。</p><p class="small muted" id="dictionary-status">辞書データを確認中…</p></div></div></div>
+</section>
+<section id="settings" class="screen">
+  <div class="page-heading"><button class="text-link" data-go="home">← 表紙へ戻る</button><p class="kicker">MATCH CONFIGURATION / 対戦準備</p><h1 class="page-title">対戦設定</h1><p class="lead compact">勝負の条件を整える。部屋を作成するか、招待された部屋へ参加してください。</p></div>
+  <form id="settings-form">
+  <div class="settings-layout"><div class="settings-main">
+    <fieldset class="setting-group"><legend><span>01</span> 問題の条件</legend><div class="form-grid">
+      <label>読みの文字数<select id="word-length"><option value="3">3文字</option><option value="4">4文字</option><option value="5" selected>5文字</option><option value="6">6文字</option><option value="7">7文字</option><option value="8">8文字</option><option value="9">9文字</option><option value="10">10文字</option><option value="any">指定なし（3〜10文字）</option></select></label>
+      <label>公開する文字数<select id="revealed-count"><option value="1">1文字</option><option value="2" selected>2文字</option><option value="3">3文字</option><option value="4">4文字</option><option value="5">5文字</option><option value="0">公開なし</option></select><small>指定文字数は問題ごとにランダムな位置で公開します。</small></label>
+      <label>試合時間<select id="match-time"><option value="180">3分</option><option value="300" selected>5分</option><option value="600">10分</option><option value="900">15分</option><option value="0">制限なし</option></select></label>
+      <label>一問の表示時間<select id="question-time"><option value="30">30秒</option><option value="60">1分</option><option value="120" selected>2分</option><option value="180">3分</option><option value="0">制限なし</option></select></label>
+      <label>正解の表示時間<select id="reveal-time"><option value="3">3秒</option><option value="5" selected>5秒</option><option value="8">8秒</option><option value="10">10秒</option></select><small>表示時間の後、ゆっくりフェードアウトします。</small></label>
+      <label>時間切れで同点の場合<select id="overtime"><option value="sudden" selected>延長戦（次の正解で決着）</option><option value="draw">引き分けで終了</option></select></label>
+    </div></fieldset>
+    <fieldset class="setting-group"><legend><span>02</span> 判定の方針</legend><div class="check-list"><div class="check-row"><span><b>読みを基準に正解判定</b><small>入力はひらがなに統一。辞書にある同じ読みの表記候補を、正解後にまとめて表示します。</small></span></div><div class="check-row"><span><b>正解後は即座に次の問題へ</b><small>正解した言葉は画面上部に残り、設定した秒数の後にゆっくり消えます。</small></span></div></div></fieldset>
+  </div><aside class="settings-aside"><div class="aside-box"><p class="kicker">ROOM / 部屋</p><h2>対戦相手を招く</h2><p>設定を決めたら部屋を作成。部屋IDを相手に共有して参加してもらいます。</p><button class="button button-dark full" type="button" id="create-room">部屋を作成</button><div id="room-created" class="room-created hidden" aria-live="polite"><span class="small muted">部屋ID（デモ）</span><strong id="room-code">ABACU1</strong><button type="button" id="copy-room" class="text-link">部屋IDをコピー</button><p class="small">オンライン通信は次の開発段階で接続します。</p></div><div class="or-rule"><span>または</span></div><label>部屋IDを入力<input id="room-id" placeholder="例：AB12CD" maxlength="8" autocomplete="off"></label><button class="button button-outline full" type="button" id="join-room">部屋に参加</button><p id="room-message" class="small muted" aria-live="polite"></p></div><div class="aside-box aside-note"><span class="section-number">※</span><p>この版では設定・画面・ローカルでの判定を確認できます。別端末との対戦にはサーバー側の部屋管理を追加します。</p></div><button class="text-link preview-link" type="button" id="preview-battle">対戦画面のプレビューを見る →</button></aside></div>
+  </form>
+</section>
+<section id="battle" class="screen">
+  <div class="battle-header"><button class="text-link" data-go="settings">← 設定へ</button><div class="match-name"><span class="kicker">ABaCu! / 対戦記録</span><strong id="match-room-label">LOCAL PREVIEW</strong></div><div class="clock-block"><span class="small muted">残り時間</span><strong id="match-clock">05:00</strong></div></div>
+  <div class="battle-layout"><div class="battle-main">
+    <div class="success-banner" id="success-banner" aria-live="polite"><span class="kicker">正解 / FOUND</span><strong id="success-reading">こうじえん</strong><span id="success-forms">広辞苑</span></div>
+    <div class="desktop-problem"><span class="kicker">問題 / PUZZLE</span><strong id="pattern-desktop">〇〇じ〇〇</strong><small id="pattern-hint-desktop">読みをひらがなで入力</small></div>
+    <div class="board-panel"><div class="board-label-row"><span>自陣 <b class="red-text">赤</b></span><span class="board-caption">七目盤 / POSITION</span><span>敵陣 <b class="blue-text">青</b></span></div><div class="board horizontal-board" id="board" aria-label="7マスの押し合い盤面"><div class="track-cell" data-cell="1"></div><div class="track-cell" data-cell="2"></div><div class="track-cell" data-cell="3"></div><div class="track-cell center-cell" data-cell="4"><div class="problem-card"><span class="kicker">問題 / PUZZLE</span><strong id="pattern-mobile">〇〇じ〇〇</strong><small id="pattern-hint-mobile">読みをひらがなで入力</small></div></div><div class="track-cell" data-cell="5"></div><div class="track-cell" data-cell="6"></div><div class="track-cell" data-cell="7"></div><div class="puck" id="puck" style="--position:4" aria-label="現在位置"></div></div><div class="board-foot"><span id="red-status">赤：自分</span><span id="position-status">中央・4 / 7</span><span id="blue-status">青：相手</span></div></div>
+    <div class="answer-area"><form id="answer-form" autocomplete="off"><label for="answer" class="kicker">回答欄 / YOUR ANSWER</label><div class="answer-row"><input id="answer" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ひらがなで入力" aria-label="ひらがなで回答"><button class="button button-dark" type="submit">回答 ↗</button></div></form><div class="answer-feedback" id="answer-message" aria-live="polite">盤面を押して勝利を目指そう。</div><div class="battle-actions"><button class="button button-outline" id="pass-button" type="button">パス</button><button class="text-link" id="opponent-test" type="button">相手の正解を再現（動作確認用）</button></div></div>
+  </div><aside class="battle-aside"><div class="score-sheet"><p class="kicker">MATCH STATUS / 戦況</p><div class="score-row"><span><i class="dot red-dot"></i> 赤 / 自分</span><strong id="red-count">4</strong></div><div class="score-row"><span><i class="dot blue-dot"></i> 青 / 相手</span><strong id="blue-count">4</strong></div><div class="thin-rule"></div><p class="small muted">正解でコマを相手側へ一歩押す。相手の正解なら、こちらへ一歩押し戻される。</p></div><div class="score-sheet"><p class="kicker">MATCH RULES / 設定概要</p><dl id="rule-summary"><dt>読みの長さ</dt><dd>5文字</dd><dt>公開文字</dt><dd>2文字</dd><dt>一問の制限</dt><dd>2分</dd><dt>試合時間</dt><dd>5分</dd></dl></div><p class="small muted aside-caution">これはローカル動作確認用の画面です。オンライン同期・部屋通信は未実装です。</p></aside></div>
+  <div class="end-overlay hidden" id="end-overlay" role="dialog" aria-modal="true" aria-labelledby="end-title"><div class="end-card"><p class="kicker">MATCH RESULT / 対戦結果</p><h2 id="end-title">勝負あり。</h2><p id="end-detail">勝敗が決まりました。</p><div class="end-buttons"><button class="button button-dark" id="rematch">再戦</button><button class="button button-outline" data-go="home">ホームに戻る</button></div></div></div>
+</section>
+</main>
+<footer class="colophon"><span>ABaCu! — 言葉押合戦</span><span>語彙・ひらめき・一駒。</span><span>© 開発中</span></footer>
+<script src="app.js"></script>
+</body></html>
