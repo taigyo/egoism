@@ -7,7 +7,7 @@ export default {
       return json({
         ok: true, service: 'egoism-room-server',
         bindings: { rooms: Boolean(env.ROOMS), assets: Boolean(env.ASSETS) },
-        version: 'room-api-v2'
+        version: 'room-api-v3'
       });
     }
 
@@ -265,6 +265,10 @@ export class GameRoom {
     }
   }
   async webSocketError(ws) { await this.webSocketClose(ws); }
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function normalizeConfig(input = {}) {

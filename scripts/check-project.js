@@ -31,7 +31,8 @@ if (!app.includes('wipe.animate(') || !app.includes('el.animate(')) fail('Territ
 if (!html.includes('class="time-settings-row"')) fail('Time settings are not grouped into one horizontal row.');
 if (config.name !== 'egoism' || config.main !== 'src/worker.js') fail('Cloudflare Worker config does not match this project.');
 if (!worker.includes('class GameRoom')) fail('Durable Object class GameRoom was not found.');
-if (!worker.includes('ROOMS_BINDING_MISSING') || !worker.includes('room-api-v2')) fail('Room API diagnostics are missing.');
+if (!worker.includes('ROOMS_BINDING_MISSING') || !worker.includes('room-api-v3')) fail('Room API diagnostics are missing.');
+if (!/function\s+clamp\s*\(/.test(worker)) fail('Worker clamp helper is missing.');
 if (!css.includes('.territory-wipe') || !css.includes('!important')) fail('Territory animation overlay styles are missing.');
 if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('A removed legacy board element is still present.');
 
