@@ -1,0 +1,16 @@
+Meaning data attribution and license
+
+This file's data is a derivative extraction of Japanese-language dictionary glosses from Wiktionary, distributed through Kaikki/wiktextract and the Wiktionary-to-Yomitan (WTY) project.
+
+Source project: https://github.com/yomidevs/wiktionary-to-yomitan
+Dictionary download page: https://yomidevs.github.io/wiktionary-to-yomitan/download/
+Wiktionary Japanese copyright and license information: https://ja.wiktionary.org/wiki/Wiktionary:著作権
+Wiktionary entries are generally available under the Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0) and the GNU Free Documentation License. This adapted meanings dataset is provided under CC BY-SA 4.0.
+
+Changes made for this game:
+- Kept Japanese glosses for headwords/readings that match the game's existing SKK-based answer dictionary.
+- Converted Yomitan structured definitions to compact plain-text summaries.
+- Limited the number and length of definitions shown per word.
+- Grouped definitions by normalized hiragana reading and written form.
+
+The game links each answer to its Japanese Wiktionary page where available. This attribution does not imply endorsement by Wiktionary contributors or the WTY project.

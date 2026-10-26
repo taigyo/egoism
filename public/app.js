@@ -2,6 +2,8 @@
 const screens = [...document.querySelectorAll('.screen')];
 const $ = id => document.getElementById(id);
 let dictionary = null;
+let meaningDictionary = null;
+let meaningDictionaryPromise = null;
 let config = {};
 let position = 3;
 let matchRemaining = 300;
@@ -55,6 +57,21 @@ async function loadDictionary() {
   }
 }
 loadDictionary();
+
+function loadMeaningDictionary() {
+  if (meaningDictionary) return Promise.resolve(meaningDictionary);
+  if (!meaningDictionaryPromise) {
+    meaningDictionaryPromise = fetch('/data/meanings.json')
+      .then(r => { if (!r.ok) throw Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data => { meaningDictionary = data; return data; })
+      .catch(error => {
+        console.error('意味辞書の読み込みに失敗しました', error);
+        meaningDictionary = {};
+        return meaningDictionary;
+      });
+  }
+  return meaningDictionaryPromise;
+}
 
 function readConfig() {
   return {
@@ -185,6 +202,9 @@ function onMatchTimeUp() {
 function renderGameHistory() {
   const list = $('game-history'); list.replaceChildren();
   if (!gameHistory.length) { const empty = document.createElement('li'); empty.className = 'history-empty'; empty.textContent = 'この試合で記録された言葉・問題はありません。'; list.append(empty); return; }
+  if (gameHistory.some(entry => !entry.unanswered) && !meaningDictionary) {
+    loadMeaningDictionary().then(() => renderGameHistory());
+  }
   gameHistory.forEach((entry, index) => {
     const li = document.createElement('li'); li.className = 'history-entry ' + (entry.who === 'red' ? 'history-red' : entry.who === 'blue' ? 'history-blue' : 'history-unanswered');
     const number = document.createElement('span'); number.className = 'history-number'; number.textContent = String(index + 1).padStart(2, '0');
@@ -198,11 +218,31 @@ function renderGameHistory() {
       forms.textContent = candidates.length > 3 ? `${candidates.slice(0, 3).join(' ・ ')} ほか${candidates.length - 3}件` : candidates.join(' ・ ') || '表記候補なし';
     }
     content.append(word, forms);
-    const meaning = document.createElement('a');
-    meaning.className = 'history-meaning-link'; meaning.textContent = entry.unanswered ? '' : '意味 ↗';
     if (!entry.unanswered) {
-      meaning.href = 'https://jisho.org/search/' + encodeURIComponent((entry.forms || [])[0] || entry.word);
-      meaning.target = '_blank'; meaning.rel = 'noopener noreferrer'; meaning.setAttribute('aria-label', `${entry.word}の意味を調べる`);
+      const definition = document.createElement('small');
+      definition.className = 'history-definition';
+      let found = [];
+      if (meaningDictionary && meaningDictionary[entry.word]) {
+        for (const form of [...new Set(entry.forms || [])]) {
+          const defs = meaningDictionary[entry.word][form];
+          if (defs && defs.length) { found = defs; break; }
+        }
+      }
+      if (found.length) {
+        definition.textContent = found.join(' ／ ');
+      } else if (!meaningDictionary) {
+        definition.textContent = '意味を読み込み中…';
+      } else {
+        definition.textContent = 'この単語の意味データはありません。';
+      }
+      content.append(definition);
+    }
+    const meaning = document.createElement('a');
+    meaning.className = 'history-meaning-link'; meaning.textContent = entry.unanswered ? '' : '辞書 ↗';
+    if (!entry.unanswered) {
+      const sourceWord = (entry.forms || [])[0] || entry.word;
+      meaning.href = 'https://ja.wiktionary.org/wiki/' + encodeURIComponent(sourceWord);
+      meaning.target = '_blank'; meaning.rel = 'noopener noreferrer'; meaning.setAttribute('aria-label', `${entry.word}の辞書ページを開く`);
     } else { meaning.setAttribute('aria-hidden', 'true'); }
     const player = document.createElement('span'); player.className = 'history-player'; player.textContent = entry.unanswered ? '未回答' : entry.who === 'red' ? '赤' : '青';
     li.append(number, content, meaning, player); list.append(li);

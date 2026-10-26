@@ -154,3 +154,7 @@
   .battle-actions .text-link{font-size:9px}
   .colophon{display:none}
 }
+
+.history-definition{font-size:12px!important;line-height:1.55;color:var(--ink)!important;padding-top:3px}
+.dictionary-attribution{font-size:10px;color:var(--muted);margin:0 0 10px}
+.dictionary-attribution a{color:inherit;text-decoration:underline;text-underline-offset:2px}
