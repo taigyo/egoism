@@ -107,3 +107,50 @@
 .history-meaning-link[aria-hidden="true"]{visibility:hidden;pointer-events:none}
 .end-buttons{margin-top:16px}
 @media(max-width:640px){.game-history-list{grid-template-columns:minmax(0,1fr);max-height:45vh}.history-entry{grid-template-columns:22px minmax(0,1fr) auto auto;gap:6px}.end-card h2{font-size:30px}.end-buttons{flex-direction:column}}
+
+
+/* v9: countdown, perspective-aware board and compact mobile battle layout */
+.mobile-problem-below{display:none}
+.countdown-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:#f4f0e7d9;backdrop-filter:blur(2px);pointer-events:auto}
+.countdown-overlay.hidden{display:none}
+.countdown-overlay span{font-family:var(--serif);font-size:clamp(110px,28vw,230px);font-weight:800;line-height:1;color:var(--ink);text-shadow:0 3px 0 #ffffff70;will-change:transform,opacity}
+#answer:disabled{opacity:.55;cursor:wait}
+.board.view-blue{direction:ltr}
+@media(max-width:520px){
+  .masthead{padding:8px 14px;border-bottom-color:#d3ccbd}
+  .wordmark{font-size:21px}
+  .masthead-right{display:none}
+  main{padding-left:12px;padding-right:12px}
+  #battle.screen{padding-top:8px;padding-bottom:12px}
+  .battle-header{gap:8px;margin-bottom:8px;align-items:center}
+  .battle-header>.text-link{font-size:10px;white-space:nowrap}
+  .match-name .kicker{font-size:8px}
+  .match-name strong{font-size:10px;letter-spacing:0}
+  .clock-block .small{font-size:9px}
+  .clock-block strong{font-size:18px}
+  .battle-layout{padding-top:4px}
+  .battle-main{max-width:100%;}
+  .success-banner{min-height:0;padding:5px 8px;margin-bottom:6px;gap:5px}
+  .success-banner .kicker{font-size:8px}
+  .success-banner strong{font-size:18px;line-height:1.15}
+  .success-banner>span:last-of-type{font-size:11px;line-height:1.3}
+  .board-panel{margin:0;padding:0}
+  .board-label-row{font-size:9px;padding:0 2px 2px;line-height:1.2}
+  .board-caption{font-size:8px}
+  .horizontal-board{gap:4px;width:100%;margin:0 auto;overflow:visible}
+  .track-cell{min-width:0;aspect-ratio:1;border-width:1px}
+  .problem-card{display:none!important}
+  .mobile-problem-below{display:flex;align-items:center;justify-content:center;gap:10px;margin:7px 0 8px;padding:5px 10px;border:1px solid var(--line);background:#fbf9f3;min-height:38px}
+  .mobile-problem-below .kicker{font-size:8px;white-space:nowrap}
+  .mobile-problem-below strong{font-size:clamp(18px,5.2vw,24px);letter-spacing:.08em;line-height:1.1;white-space:nowrap}
+  .answer-area{margin-top:5px}
+  #answer-form label{font-size:9px;margin-bottom:3px}
+  .answer-row{gap:5px}
+  .answer-row input{height:40px;padding:7px 9px;font-size:16px}
+  .answer-row .button{min-height:40px;font-size:12px;min-width:70px;padding:0 9px}
+  .answer-feedback{font-size:10px;line-height:1.35;min-height:14px;margin-top:4px}
+  .battle-actions{gap:12px;margin-top:4px}
+  .battle-actions .button{min-height:31px;padding:0 11px;font-size:10px}
+  .battle-actions .text-link{font-size:9px}
+  .colophon{display:none}
+}

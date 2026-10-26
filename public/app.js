@@ -25,17 +25,18 @@ let matchDeadline = 0;
 let questionDeadline = 0;
 let lastQuestionId = 0;
 let lastSuccessKey = '';
+let countdownRunning = false;
+let countdownTimer = null;
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
 function goTo(id) {
   screens.forEach(s => s.classList.toggle('active', s.id === id));
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (id === 'battle') $('answer').focus({ preventScroll: true });
+  if (id === 'battle' && !countdownRunning && !gameEnded) $('answer').focus({ preventScroll: true });
 }
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', async () => {
   if (online && b.dataset.go !== 'battle') {
-    if (lastServerState?.ended) await cleanupOnlineRoom();
-    else disconnectOnline();
+    disconnectOnline();
     resetRoomUi();
   }
   stopTimers();
@@ -110,6 +111,7 @@ function buildQuestion() {
   questionRecorded = false;
   $('pattern-desktop').textContent = currentPattern;
   $('pattern-mobile').textContent = currentPattern;
+  if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = currentPattern;
   animateQuestionText();
   $('answer').value = '';
   $('answer-message').textContent = '表示された文字に合う読みを入力してください。';
@@ -126,8 +128,8 @@ function recordUnanswered(reason) {
 function updateBoard(previous = position, animate = true) {
   const cells = [...document.querySelectorAll('.track-cell')];
   cells.forEach((cell, i) => {
-    const wasRed = i < previous;
-    const isRed = i < position;
+    const wasRed = playerRole === 'blue' ? i >= previous : i < previous;
+    const isRed = playerRole === 'blue' ? i >= position : i < position;
     const changed = animate && wasRed !== isRed;
     const oldColor = getComputedStyle(cell).backgroundColor;
     cell.querySelectorAll('.territory-wipe').forEach(node => node.remove());
@@ -277,6 +279,9 @@ async function cleanupOnlineRoom() {
   disconnectOnline();
 }
 function resetRoomUi() {
+  if (countdownTimer) clearTimeout(countdownTimer); countdownTimer = null; countdownRunning = false;
+  $('countdown-overlay')?.classList.add('hidden');
+  $('answer').disabled = false;
   try {
     for (let i = sessionStorage.length - 1; i >= 0; i--) {
       const key = sessionStorage.key(i);
@@ -342,7 +347,7 @@ function connectOnline(code, token) {
     if (msg.type === 'state') applyServerState(msg.state);
     if (msg.type === 'room-full') { setRoomMessage('この部屋は満員です。'); disconnectOnline(); }
   });
-  socket.addEventListener('close', () => { if (online && !gameEnded) setRoomMessage('サーバーとの接続が切れました。部屋IDを使って再接続してください。'); });
+  socket.addEventListener('close', event => { if (online && !gameEnded) setRoomMessage(event.reason === 'room-cleaned' ? '部屋が終了しました。' : 'サーバーとの接続が切れました。部屋IDを使って再接続してください。'); });
   socket.addEventListener('error', () => setRoomMessage('接続に失敗しました。部屋IDと公開先の設定を確認してください。'));
 }
 function disconnectOnline() {
@@ -355,19 +360,54 @@ function sendOnline(type, payload = {}) {
   if (!socket || socket.readyState !== WebSocket.OPEN) { $('answer-message').textContent = 'サーバーに接続していません。'; return false; }
   socket.send(JSON.stringify({ type, ...payload })); return true;
 }
+function startCountdown() {
+  if (countdownRunning) return;
+  countdownRunning = true;
+  $('answer').disabled = true;
+  $('countdown-overlay').classList.remove('hidden');
+  const glyph = $('countdown-glyph');
+  const sequence = ['参', '弐', '壱'];
+  let index = 0;
+  const showNext = () => {
+    if (index >= sequence.length) {
+      glyph.animate([{ opacity: 1, transform: 'scale(1.18)' }, { opacity: 0, transform: 'scale(1.65)' }], { duration: 650, easing: 'ease-out', fill: 'forwards' });
+      countdownTimer = setTimeout(() => {
+        $('countdown-overlay').classList.add('hidden');
+        countdownRunning = false; countdownTimer = null; $('answer').disabled = false;
+        if (!gameEnded && online) $('answer').focus({ preventScroll: true });
+      }, 650);
+      return;
+    }
+    glyph.textContent = sequence[index++];
+    glyph.getAnimations().forEach(a => a.cancel());
+    glyph.animate([{ opacity: 0, transform: 'scale(.45)' }, { opacity: 1, transform: 'scale(1.08)', offset: .68 }, { opacity: 0, transform: 'scale(1.42)' }], { duration: 900, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'forwards' });
+    countdownTimer = setTimeout(showNext, 900);
+  };
+  showNext();
+}
 function applyServerState(state) {
-  const previous = lastServerState ? lastServerState.position : state.position;
-  lastServerState = state; position = state.position; config = state.config || config;
+  const oldState = lastServerState;
+  const oldVisualPosition = oldState ? (playerRole === 'blue' ? 6 - oldState.position : oldState.position) : (playerRole === 'blue' ? 6 - state.position : state.position);
+  const wasEnded = !!oldState?.ended;
+  lastServerState = state;
+  position = playerRole === 'blue' ? 6 - state.position : state.position;
+  config = state.config || config;
   currentPattern = state.pattern || ''; gameEnded = state.ended; inOvertime = state.inOvertime;
   matchDeadline = state.matchDeadline || 0; questionDeadline = state.questionDeadline || 0;
-  $('match-room-label').textContent = `${roomCode} / ${state.started ? (playerRole === 'red' ? '赤' : '青') : '相手待ち'}`;
+  const ownColor = playerRole === 'blue' ? '青' : '赤';
+  const enemyColor = playerRole === 'blue' ? '赤' : '青';
+  $('match-room-label').textContent = `${roomCode} / ${state.started ? ownColor : '相手待ち'}`;
+  $('board').classList.toggle('view-blue', playerRole === 'blue');
+  $('board').parentElement.querySelector('.own-side-label').innerHTML = `自陣 <b class="${playerRole === 'blue' ? 'blue-text' : 'red-text'}">${ownColor}</b>`;
+  $('board').parentElement.querySelector('.enemy-side-label').innerHTML = `敵陣 <b class="${playerRole === 'blue' ? 'red-text' : 'blue-text'}">${enemyColor}</b>`;
+  if (state.started && (!oldState?.started || (wasEnded && !state.ended))) startCountdown();
   if (!state.started) { setRoomMessage(state.players?.blue?.connected ? '対戦を準備しています…' : '相手の参加を待っています…'); $('answer-message').textContent = '相手が参加すると対戦が始まります。'; return; }
   setRoomMessage('対戦中です。部屋IDを共有している相手と接続中です。');
   if (!$('battle').classList.contains('active')) goTo('battle');
   $('end-overlay').classList.add('hidden');
-  $('pattern-desktop').textContent = currentPattern; $('pattern-mobile').textContent = currentPattern;
+  $('pattern-desktop').textContent = currentPattern; $('pattern-mobile').textContent = currentPattern; if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = currentPattern;
   if (state.questionId !== lastQuestionId) { lastQuestionId = state.questionId; animateQuestionText(); $('answer').value = ''; }
-  updateBoard(previous, !!lastServerState && previous !== position);
+  updateBoard(oldVisualPosition, oldVisualPosition !== position);
   if (state.lastSuccess) {
     const key = `${state.lastSuccess.reading}:${state.lastSuccess.questionId}`;
     if (key !== lastSuccessKey) { lastSuccessKey = key; showSuccess(state.lastSuccess.reading, state.lastSuccess.forms); }
@@ -376,7 +416,24 @@ function applyServerState(state) {
   if (state.passed?.length) $('answer-message').textContent = state.passed.includes(playerRole) ? 'パス済みです。相手のパスを待っています。' : '相手がパスしました。パスするか、回答してください。';
   else $('answer-message').textContent = inOvertime ? '延長戦！ 次の正解で決着します。' : '表示された文字に合う読みを入力してください。';
   if (state.ended) {
-    stopTimers(); const winner = state.result?.winner; $('end-title').textContent = winner === null || winner === undefined ? '引き分け' : winner === playerRole ? 'エ語彙スト！' : '相手がエ語彙スト！'; $('end-detail').textContent = state.result?.detail || '対戦が終了しました。'; renderGameHistory(); $('end-overlay').classList.remove('hidden');
+    stopTimers(); const winner = state.result?.winner; $('end-title').textContent = winner === null || winner === undefined ? '引き分け' : winner === playerRole ? 'エ語彙スト！' : '相手がエ語彙スト！';
+    const opponentRole = playerRole === 'red' ? 'blue' : 'red';
+    const opponentConnected = !!state.players?.[opponentRole]?.connected;
+    const votes = state.rematchVotes || {};
+    const rematchButton = $('rematch');
+    if (!opponentConnected) {
+      $('end-detail').textContent = '相手が部屋を退出しました。再戦するには新しい部屋を作成してください。';
+      rematchButton.disabled = true; rematchButton.textContent = '相手が退出しました';
+    } else if (votes[playerRole]) {
+      $('end-detail').textContent = votes[opponentRole] ? '再戦を準備しています…' : '再戦を申し込みました。相手が押すのを待っています。';
+      rematchButton.disabled = true; rematchButton.textContent = '再戦を待っています…';
+    } else {
+      $('end-detail').textContent = state.result?.detail || '対戦が終了しました。';
+      rematchButton.disabled = false; rematchButton.textContent = '再戦';
+    }
+    renderGameHistory(); $('end-overlay').classList.remove('hidden');
+  } else {
+    $('end-overlay').classList.add('hidden'); $('rematch').disabled = false; $('rematch').textContent = '再戦';
   }
   if (!clockTimer) clockTimer = setInterval(updateOnlineClock, 250);
   updateOnlineClock();
@@ -384,8 +441,8 @@ function applyServerState(state) {
 function updateOnlineClock() {
   if (!online || !lastServerState) return;
   const now = Date.now();
-  const match = matchDeadline ? Math.max(0, Math.ceil((matchDeadline - now) / 1000)) : 0;
-  const question = questionDeadline ? Math.max(0, Math.ceil((questionDeadline - now) / 1000)) : 0;
+  const match = matchDeadline ? Math.min(config.matchTime || Infinity, Math.max(0, Math.ceil((matchDeadline - now) / 1000))) : 0;
+  const question = questionDeadline ? Math.min(config.questionTime || Infinity, Math.max(0, Math.ceil((questionDeadline - now) / 1000))) : 0;
   $('match-clock').textContent = lastServerState.inOvertime ? '延長' : matchDeadline ? formatTime(match) : '∞';
   questionRemaining = questionDeadline ? question : 0;
 }
@@ -410,7 +467,7 @@ $('pass-button').addEventListener('click', () => {
   $('answer').focus({ preventScroll: true });
 });
 $('opponent-test').addEventListener('click', () => { if (!online) acceptAnswer(currentAnswer, 'blue'); if (!gameEnded) $('answer').focus({ preventScroll: true }); });
-$('rematch').addEventListener('click', async () => { if (online) { if (lastServerState?.ended) await cleanupOnlineRoom(); else disconnectOnline(); resetRoomUi(); goTo('settings'); } else startDemo(); });
+$('rematch').addEventListener('click', () => { if (online) { if (lastServerState?.ended) { sendOnline('rematch'); $('rematch').disabled = true; $('rematch').textContent = '再戦を待っています…'; $('end-detail').textContent = '再戦を申し込みました。相手が押すのを待っています。'; } } else startDemo(); });
 document.addEventListener('keydown', e => {
   if (!$('battle').classList.contains('active') || gameEnded || e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
   const input = $('answer'); if (document.activeElement !== input && !e.target.matches('input,select,textarea,button')) input.focus({ preventScroll: true });

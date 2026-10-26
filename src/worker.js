@@ -7,7 +7,7 @@ export default {
       return json({
         ok: true, service: 'egoism-room-server',
         bindings: { rooms: Boolean(env.ROOMS), assets: Boolean(env.ASSETS) },
-        version: 'room-api-v4'
+        version: 'room-api-v5'
       });
     }
 
@@ -112,7 +112,7 @@ export class GameRoom {
         players: { red: { token: input.hostToken, connected: false }, blue: { token: null, connected: false } },
         started: false, ended: false, inOvertime: false, position: 3,
         pattern: '', answer: '', questionId: 0, history: [], lastSuccess: null, passed: [],
-        matchDeadline: 0, questionDeadline: 0, result: null, usedWords: []
+        matchDeadline: 0, questionDeadline: 0, result: null, usedWords: [], rematchVotes: { red: false, blue: false }
       };
       await this.ctx.storage.put('room', this.room);
       return json({ ok: true });
@@ -150,8 +150,10 @@ export class GameRoom {
     if (!this.room || this.room.started) return;
     const dict = await this.loadDictionary();
     this.room.started = true;
-    this.room.matchDeadline = this.room.config.matchTime > 0 ? Date.now() + this.room.config.matchTime * 1000 : 0;
+    const startAt = Date.now() + 3500;
+    this.room.matchDeadline = this.room.config.matchTime > 0 ? startAt + this.room.config.matchTime * 1000 : 0;
     this.makeQuestion(dict);
+    this.room.questionDeadline = this.room.config.questionTime > 0 ? startAt + this.room.config.questionTime * 1000 : 0;
     await this.saveRoom();
   }
 
@@ -183,9 +185,24 @@ export class GameRoom {
     try { payload = JSON.parse(typeof message === 'string' ? message : new TextDecoder().decode(message)); }
     catch { this.send(ws, { type: 'error', message: 'メッセージを読み取れません。' }); return; }
     const room = await this.loadRoom();
-    if (!room || !room.started || room.ended) return;
+    if (!room) return;
     if (!['red', 'blue'].includes(role) || room.players[role].token !== attachment.token) return;
     try {
+      if (payload.type === 'rematch') {
+        if (!room.ended) return;
+        if (!room.players.red.connected || !room.players.blue.connected) { this.send(ws, { type: 'error', message: '相手が部屋を退出しました。新しい部屋を作成してください。' }); return; }
+        room.rematchVotes = room.rematchVotes || { red: false, blue: false };
+        room.rematchVotes[role] = true;
+        if (room.rematchVotes.red && room.rematchVotes.blue) {
+          room.started = false; room.ended = false; room.inOvertime = false; room.position = 3;
+          room.pattern = ''; room.answer = ''; room.questionId = 0; room.history = []; room.lastSuccess = null; room.passed = [];
+          room.matchDeadline = 0; room.questionDeadline = 0; room.result = null; room.usedWords = [];
+          room.rematchVotes = { red: false, blue: false };
+          await this.startMatch(); await this.broadcast();
+        } else { await this.saveRoom(); await this.broadcast(); }
+        return;
+      }
+      if (!room.started || room.ended) return;
       if (payload.questionId && Number(payload.questionId) !== room.questionId) { this.sendRole(role, { type: 'error', message: '問題が切り替わりました。新しい問題に回答してください。' }); return; }
       if (payload.type === 'answer') await this.handleAnswer(role, String(payload.word || ''));
       else if (payload.type === 'pass') await this.handlePass(role);
@@ -275,7 +292,7 @@ export class GameRoom {
       config: r.config, players: { red: { connected: r.players.red.connected }, blue: { connected: r.players.blue.connected } },
       started: r.started, ended: r.ended, inOvertime: r.inOvertime, position: r.position, pattern: r.pattern,
       questionId: r.questionId, history: r.history, lastSuccess: r.lastSuccess, passed: r.passed,
-      matchDeadline: r.matchDeadline, questionDeadline: r.questionDeadline, result: r.result
+      matchDeadline: r.matchDeadline, questionDeadline: r.questionDeadline, result: r.result, rematchVotes: r.rematchVotes || { red: false, blue: false }
     };
   }
   async broadcast() {
