@@ -119,10 +119,11 @@ function updateBoard(previous = position, animate = true) {
     const wasRed = i < previous;
     const isRed = i < position;
     cell.classList.remove('captured-red', 'captured-blue');
+    // Flush the removal first so the same cell can animate again on later turns.
+    void cell.offsetWidth;
     cell.classList.toggle('red-territory', isRed);
     cell.classList.toggle('blue-territory', !isRed);
     if (animate && wasRed !== isRed) {
-      void cell.offsetWidth;
       cell.classList.add(isRed ? 'captured-red' : 'captured-blue');
     }
   });

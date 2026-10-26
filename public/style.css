@@ -50,13 +50,13 @@
 .match-name strong{font-size:12px}
 .desktop-problem strong.slide-in-text,.problem-card strong.slide-in-text{animation:slideInText .55s cubic-bezier(.2,.8,.2,1) both}
 
-/* Stable, repeatable territory wipe animation */
-.track-cell{isolation:isolate;border-radius:50%;transform:none!important}
-.track-cell::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:1;pointer-events:none;clip-path:inset(0);}
-.track-cell.captured-red::before{background:var(--blue);animation:wipe-to-red 1s cubic-bezier(.22,.75,.25,1) both}
-.track-cell.captured-blue::before{background:var(--red);animation:wipe-to-blue 1s cubic-bezier(.22,.75,.25,1) both}
-@keyframes wipe-to-red{from{clip-path:inset(0)}to{clip-path:inset(0 0 0 100%)}}
-@keyframes wipe-to-blue{from{clip-path:inset(0)}to{clip-path:inset(0 100% 0 0)}}
+/* Territory wipe: animate a contrasting overlay so the change is visible even when the base color changes instantly. */
+.track-cell{isolation:isolate;border-radius:50%;transform:none!important;overflow:hidden}
+.track-cell::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:1;pointer-events:none;transform:scaleX(0);}
+.track-cell.captured-red::before{background:var(--blue);transform-origin:right;animation:wipe-to-red 1s cubic-bezier(.22,.75,.25,1) both}
+.track-cell.captured-blue::before{background:var(--red);transform-origin:left;animation:wipe-to-blue 1s cubic-bezier(.22,.75,.25,1) both}
+@keyframes wipe-to-red{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@keyframes wipe-to-blue{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 .track-cell.red-territory,.track-cell.blue-territory{transition:border-color 1s cubic-bezier(.22,.75,.25,1)}
 .track-cell.captured-red,.track-cell.captured-blue{animation:none}
 /* One consistent range-slider skin */
