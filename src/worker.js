@@ -7,7 +7,7 @@ export default {
       return json({
         ok: true, service: 'egoism-room-server',
         bindings: { rooms: Boolean(env.ROOMS), assets: Boolean(env.ASSETS) },
-        version: 'room-api-v3'
+        version: 'room-api-v4'
       });
     }
 
@@ -38,6 +38,17 @@ export default {
           detail: String(error?.message || error).slice(0, 240)
         }, 500);
       }
+    }
+
+    const cleanupMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{4,8})\/cleanup$/);
+    if (cleanupMatch && request.method === 'POST') {
+      if (!env.ROOMS) return json({ error: 'ROOMS binding missing' }, 503);
+      let input;
+      try { input = await request.json(); } catch { return json({ error: 'Invalid cleanup request' }, 400); }
+      const id = env.ROOMS.idFromName(cleanupMatch[1]);
+      return env.ROOMS.get(id).fetch('https://room.internal/cleanup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: input.token })
+      });
     }
 
     const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{4,8})\/ws$/);
@@ -79,6 +90,21 @@ export class GameRoom {
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname === '/cleanup' && request.method === 'POST') {
+      const room = await this.loadRoom();
+      if (!room) return json({ ok: true, alreadyClean: true });
+      let input;
+      try { input = await request.json(); } catch { return json({ error: 'Invalid cleanup request' }, 400); }
+      const token = input.token;
+      const authorized = token && (token === room.players?.red?.token || token === room.players?.blue?.token);
+      if (!authorized) return json({ error: '部屋を削除する権限がありません。' }, 403);
+      if (!room.ended) return json({ error: '対戦終了前の部屋は削除できません。' }, 409);
+      for (const ws of this.ctx.getWebSockets()) { try { ws.close(1000, 'room-cleaned'); } catch {} }
+      await this.ctx.storage.deleteAll();
+      this.room = null; this.dictionary = null;
+      return json({ ok: true });
+    }
+
     if (url.pathname === '/init' && request.method === 'POST') {
       const input = await request.json();
       this.room = {
@@ -211,7 +237,13 @@ export class GameRoom {
 
   async alarm() {
     const room = await this.loadRoom();
-    if (!room || !room.started || room.ended) return;
+    if (!room) return;
+    if (room.ended) {
+      for (const ws of this.ctx.getWebSockets()) { try { ws.close(1000, 'room-expired'); } catch {} }
+      await this.ctx.storage.deleteAll(); this.room = null; this.dictionary = null;
+      return;
+    }
+    if (!room.started) return;
     const now = Date.now();
     if (room.matchDeadline && now >= room.matchDeadline) {
       if (room.position === 3 && room.config.overtime === 'sudden') {
@@ -229,7 +261,9 @@ export class GameRoom {
   }
 
   async scheduleAlarm() {
-    if (!this.room || !this.room.started || this.room.ended) { await this.ctx.storage.deleteAlarm(); return; }
+    if (!this.room) { await this.ctx.storage.deleteAlarm(); return; }
+    if (this.room.ended) { await this.ctx.storage.setAlarm(Date.now() + 30 * 60 * 1000); return; }
+    if (!this.room.started) { await this.ctx.storage.deleteAlarm(); return; }
     const deadlines = [this.room.matchDeadline, this.room.questionDeadline].filter(n => n > 0);
     if (!deadlines.length) { await this.ctx.storage.deleteAlarm(); return; }
     await this.ctx.storage.setAlarm(Math.min(...deadlines));
@@ -272,16 +306,17 @@ function clamp(value, min, max) {
 }
 
 function normalizeConfig(input = {}) {
-  const lengthMin = clamp(Number(input.lengthMin) || 3, 3, 10);
-  const lengthMax = clamp(Number(input.lengthMax) || 6, lengthMin, 10);
-  const revealA = clamp(Number(input.revealedMin) || 0, 0, 10);
-  const revealB = clamp(Number(input.revealedMax) || 0, 0, 10);
+  const numberOr = (value, fallback) => Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : fallback;
+  const lengthMin = clamp(numberOr(input.lengthMin, 4), 3, 10);
+  const lengthMax = clamp(numberOr(input.lengthMax, 7), lengthMin, 10);
+  const revealA = clamp(numberOr(input.revealedMin, 1), 0, 10);
+  const revealB = clamp(numberOr(input.revealedMax, 2), 0, 10);
   return {
     lengthMin, lengthMax,
     revealedMin: Math.min(revealA, revealB),
     revealedMax: Math.max(revealA, revealB),
-    matchTime: Math.max(0, Number(input.matchTime) || 0),
-    questionTime: Math.max(0, Number(input.questionTime) || 0),
+    matchTime: Math.max(0, numberOr(input.matchTime, 300)),
+    questionTime: Math.max(0, numberOr(input.questionTime, 120)),
     overtime: input.overtime === 'draw' ? 'draw' : 'sudden'
   };
 }

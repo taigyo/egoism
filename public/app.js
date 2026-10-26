@@ -32,8 +32,12 @@ function goTo(id) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (id === 'battle') $('answer').focus({ preventScroll: true });
 }
-document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
-  if (online && b.dataset.go !== 'battle') disconnectOnline();
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', async () => {
+  if (online && b.dataset.go !== 'battle') {
+    if (lastServerState?.ended) await cleanupOnlineRoom();
+    else disconnectOnline();
+    resetRoomUi();
+  }
   stopTimers();
   goTo(b.dataset.go);
 }));
@@ -184,10 +188,22 @@ function renderGameHistory() {
     const number = document.createElement('span'); number.className = 'history-number'; number.textContent = String(index + 1).padStart(2, '0');
     const content = document.createElement('span'); content.className = 'history-content';
     const word = document.createElement('strong'); word.textContent = entry.unanswered ? `問題：${entry.pattern}` : entry.word;
-    const forms = document.createElement('small'); forms.textContent = entry.unanswered ? `未回答（${entry.reason}）候補：${(entry.candidates || []).join(' ・ ') || '候補なし'}` : (entry.forms || []).join(' ・ ') || '表記候補なし';
+    const forms = document.createElement('small');
+    if (entry.unanswered) {
+      forms.textContent = `未回答（${entry.reason}）候補：${(entry.candidates || []).join(' ・ ') || '候補なし'}`;
+    } else {
+      const candidates = [...new Set(entry.forms || [])];
+      forms.textContent = candidates.length > 3 ? `${candidates.slice(0, 3).join(' ・ ')} ほか${candidates.length - 3}件` : candidates.join(' ・ ') || '表記候補なし';
+    }
     content.append(word, forms);
+    const meaning = document.createElement('a');
+    meaning.className = 'history-meaning-link'; meaning.textContent = entry.unanswered ? '' : '意味 ↗';
+    if (!entry.unanswered) {
+      meaning.href = 'https://jisho.org/search/' + encodeURIComponent((entry.forms || [])[0] || entry.word);
+      meaning.target = '_blank'; meaning.rel = 'noopener noreferrer'; meaning.setAttribute('aria-label', `${entry.word}の意味を調べる`);
+    } else { meaning.setAttribute('aria-hidden', 'true'); }
     const player = document.createElement('span'); player.className = 'history-player'; player.textContent = entry.unanswered ? '未回答' : entry.who === 'red' ? '赤' : '青';
-    li.append(number, content, player); list.append(li);
+    li.append(number, content, meaning, player); list.append(li);
   });
 }
 function endGame(title, detail) {
@@ -199,7 +215,6 @@ function endGame(title, detail) {
 function showSuccess(word, formsOverride = null) {
   const forms = [...new Set(formsOverride || dictionary?.[word] || [])];
   $('success-reading').textContent = word; $('success-forms').textContent = forms.slice(0, 10).join(' ・ ') || '表記候補なし';
-  $('meaning-link').href = 'https://jisho.org/search/' + encodeURIComponent(forms[0] || word);
   const banner = $('success-banner'); banner.classList.remove('show'); void banner.offsetWidth; banner.classList.add('show');
 }
 function acceptAnswer(word, who = 'red') {
@@ -250,6 +265,37 @@ $('settings-form').addEventListener('submit', e => e.preventDefault());
 function setRoomMessage(message) { $('room-message').textContent = message; }
 function makeToken() { return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36); }
 function websocketUrl(code, token) { const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:'; return `${scheme}//${location.host}/api/rooms/${encodeURIComponent(code)}/ws?token=${encodeURIComponent(token)}`; }
+async function cleanupOnlineRoom() {
+  const code = roomCode, token = roomToken;
+  if (code && token) {
+    try {
+      await fetch(`/api/rooms/${encodeURIComponent(code)}/cleanup`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token })
+      });
+    } catch (error) { console.warn('Room cleanup request failed', error); }
+  }
+  disconnectOnline();
+}
+function resetRoomUi() {
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith('egoism-room:')) sessionStorage.removeItem(key);
+    }
+  } catch {}
+  roomCode = ''; roomToken = ''; playerRole = ''; lastServerState = null;
+  lastQuestionId = 0; lastSuccessKey = ''; gameHistory = []; currentPattern = ''; currentAnswer = '';
+  gameEnded = false; inOvertime = false; questionRecorded = false; position = 3;
+  $('room-created').classList.add('hidden'); $('room-code').textContent = '—';
+  $('room-id').value = ''; $('room-message').textContent = '';
+  $('create-room').disabled = false; $('create-room').textContent = '部屋を作成';
+  $('end-overlay').classList.add('hidden'); $('game-history').replaceChildren();
+  $('success-banner').classList.remove('show'); $('success-reading').textContent = ''; $('success-forms').textContent = '';
+  $('answer').value = ''; $('answer-message').textContent = '盤面を押して勝利を目指そう。';
+  $('match-room-label').textContent = 'LOCAL PREVIEW'; matchRemaining = 300; questionRemaining = 120;
+  updateBoard(3, false); updateClockLocal();
+}
+
 async function createOnlineRoom() {
   const button = $('create-room'); button.disabled = true; setRoomMessage('部屋を作成しています…');
   try {
@@ -364,7 +410,7 @@ $('pass-button').addEventListener('click', () => {
   $('answer').focus({ preventScroll: true });
 });
 $('opponent-test').addEventListener('click', () => { if (!online) acceptAnswer(currentAnswer, 'blue'); if (!gameEnded) $('answer').focus({ preventScroll: true }); });
-$('rematch').addEventListener('click', () => { if (online) { disconnectOnline(); goTo('settings'); } else startDemo(); });
+$('rematch').addEventListener('click', async () => { if (online) { if (lastServerState?.ended) await cleanupOnlineRoom(); else disconnectOnline(); resetRoomUi(); goTo('settings'); } else startDemo(); });
 document.addEventListener('keydown', e => {
   if (!$('battle').classList.contains('active') || gameEnded || e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
   const input = $('answer'); if (document.activeElement !== input && !e.target.matches('input,select,textarea,button')) input.focus({ preventScroll: true });
