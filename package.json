@@ -1,0 +1,13 @@
+{
+  "name": "egoism-word-battle",
+  "private": true,
+  "version": "0.3.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/worker.js && node --check public/app.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

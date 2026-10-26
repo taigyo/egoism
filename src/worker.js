@@ -1,0 +1,270 @@
+const ROOM_ID_RE = /^[A-Z0-9]{4,8}$/;
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === '/api/health') return json({ ok: true, service: 'egoism-room-server' });
+
+    if (url.pathname === '/api/rooms' && request.method === 'POST') {
+      let input;
+      try { input = await request.json(); } catch { return json({ error: '設定データを読み取れません。' }, 400); }
+      const config = normalizeConfig(input);
+      const code = randomCode();
+      const token = crypto.randomUUID();
+      const id = env.ROOMS.idFromName(code);
+      const stub = env.ROOMS.get(id);
+      const init = await stub.fetch('https://room.internal/init', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config, hostToken: token })
+      });
+      if (!init.ok) return json({ error: '部屋を初期化できませんでした。' }, 500);
+      return json({ code, token });
+    }
+
+    const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{4,8})\/ws$/);
+    if (match && request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+      const code = match[1];
+      if (!ROOM_ID_RE.test(code)) return json({ error: '部屋IDが不正です。' }, 400);
+      const id = env.ROOMS.idFromName(code);
+      const roomUrl = new URL(request.url); roomUrl.pathname = '/ws';
+      return env.ROOMS.get(id).fetch(new Request(roomUrl.toString(), request));
+    }
+
+    return env.ASSETS.fetch(request);
+  }
+};
+
+export class GameRoom {
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+    this.room = null;
+    this.dictionary = null;
+  }
+
+  async loadRoom() {
+    if (!this.room) this.room = await this.ctx.storage.get('room');
+    return this.room;
+  }
+  async saveRoom() {
+    await this.ctx.storage.put('room', this.room);
+    await this.scheduleAlarm();
+  }
+  async loadDictionary() {
+    if (this.dictionary) return this.dictionary;
+    const response = await this.env.ASSETS.fetch('https://egoism-assets/data/words.json');
+    if (!response.ok) throw new Error('辞書データを読み込めません。');
+    this.dictionary = await response.json();
+    return this.dictionary;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (url.pathname === '/init' && request.method === 'POST') {
+      const input = await request.json();
+      this.room = {
+        config: normalizeConfig(input.config), hostToken: input.hostToken,
+        players: { red: { token: input.hostToken, connected: false }, blue: { token: null, connected: false } },
+        started: false, ended: false, inOvertime: false, position: 3,
+        pattern: '', answer: '', questionId: 0, history: [], lastSuccess: null, passed: [],
+        matchDeadline: 0, questionDeadline: 0, result: null, usedWords: []
+      };
+      await this.ctx.storage.put('room', this.room);
+      return json({ ok: true });
+    }
+    if (url.pathname !== '/ws' || request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+      return json({ error: 'Not found' }, 404);
+    }
+    const room = await this.loadRoom();
+    if (!room) return json({ error: '部屋が見つかりません。' }, 404);
+    const token = url.searchParams.get('token');
+    if (!token) return json({ error: '接続トークンがありません。' }, 400);
+    let role;
+    if (token === room.players.red.token) role = 'red';
+    else if (room.players.blue.token === token) role = 'blue';
+    else if (!room.players.blue.token) { role = 'blue'; room.players.blue.token = token; }
+    else return json({ type: 'room-full', error: 'この部屋は満員です。' }, 409);
+
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+    server.serializeAttachment({ role, token });
+    this.ctx.acceptWebSocket(server);
+    room.players[role].connected = true;
+    if (room.players.red.connected && room.players.blue.connected && !room.started && !room.ended) {
+      await this.startMatch();
+    } else {
+      await this.saveRoom();
+    }
+    await this.broadcast();
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async startMatch() {
+    await this.loadRoom();
+    if (!this.room || this.room.started) return;
+    const dict = await this.loadDictionary();
+    this.room.started = true;
+    this.room.matchDeadline = this.room.config.matchTime > 0 ? Date.now() + this.room.config.matchTime * 1000 : 0;
+    this.makeQuestion(dict);
+    await this.saveRoom();
+  }
+
+  makeQuestion(dict) {
+    const room = this.room;
+    const keys = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && word.length >= room.config.lengthMin && word.length <= room.config.lengthMax);
+    if (!keys.length) throw new Error('設定に合う読みがありません。');
+    const available = keys.filter(word => !room.usedWords.includes(word));
+    const pool = available.length ? available : keys;
+    const answer = pool[Math.floor(Math.random() * pool.length)];
+    room.answer = answer;
+    room.usedWords.push(answer);
+    const count = Math.min(room.config.revealed, [...answer].length);
+    const indexes = [...answer].map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, count);
+    const pattern = [...'〇'.repeat([...answer].length)];
+    indexes.forEach(i => pattern[i] = [...answer][i]);
+    room.pattern = pattern.join('');
+    room.questionId += 1;
+    room.passed = [];
+    room.questionDeadline = room.config.questionTime > 0 ? Date.now() + room.config.questionTime * 1000 : 0;
+  }
+
+  async webSocketMessage(ws, message) {
+    const attachment = ws.deserializeAttachment() || {};
+    const role = attachment.role;
+    let payload;
+    try { payload = JSON.parse(typeof message === 'string' ? message : new TextDecoder().decode(message)); }
+    catch { this.send(ws, { type: 'error', message: 'メッセージを読み取れません。' }); return; }
+    const room = await this.loadRoom();
+    if (!room || !room.started || room.ended) return;
+    if (!['red', 'blue'].includes(role) || room.players[role].token !== attachment.token) return;
+    try {
+      if (payload.questionId && Number(payload.questionId) !== room.questionId) { this.sendRole(role, { type: 'error', message: '問題が切り替わりました。新しい問題に回答してください。' }); return; }
+      if (payload.type === 'answer') await this.handleAnswer(role, String(payload.word || ''));
+      else if (payload.type === 'pass') await this.handlePass(role);
+    } catch (error) {
+      this.send(ws, { type: 'error', message: error.message || '操作を処理できませんでした。' });
+    }
+  }
+
+  async handleAnswer(role, word) {
+    const room = this.room;
+    const dict = await this.loadDictionary();
+    if (!/^[ぁ-ゖー]+$/.test(word)) { this.sendRole(role, { type: 'error', message: 'ひらがなで入力してください。' }); return; }
+    if (!dict[word] || !matchesPattern(word, room.pattern)) { this.sendRole(role, { type: 'error', message: '読みが問題の条件に合いません。' }); return; }
+    const forms = [...new Set(dict[word] || [])];
+    room.history.push({ word, who: role, forms });
+    room.lastSuccess = { reading: word, forms, questionId: room.questionId };
+    room.passed = [];
+    if (room.inOvertime) {
+      room.ended = true;
+      room.result = { winner: role, detail: '延長戦で先に正解しました。' };
+    } else {
+      room.position = Math.max(0, Math.min(6, room.position + (role === 'red' ? 1 : -1)));
+      if (room.position === 6) { room.ended = true; room.result = { winner: 'red', detail: '6マスすべてを赤に塗り替えました。' }; }
+      else if (room.position === 0) { room.ended = true; room.result = { winner: 'blue', detail: '6マスすべてを青に塗り替えました。' }; }
+      else this.makeQuestion(await this.loadDictionary());
+    }
+    await this.saveRoom();
+    await this.broadcast();
+  }
+
+  async handlePass(role) {
+    const room = this.room;
+    if (!room.passed.includes(role)) room.passed.push(role);
+    if (room.passed.length >= 2) {
+      await this.recordUnanswered('両者パス');
+      this.makeQuestion(await this.loadDictionary());
+    }
+    await this.saveRoom();
+    await this.broadcast();
+  }
+
+  async recordUnanswered(reason) {
+    const room = this.room;
+    const dict = await this.loadDictionary();
+    const candidates = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && matchesPattern(word, room.pattern));
+    candidates.sort(() => Math.random() - 0.5);
+    room.history.push({ unanswered: true, pattern: room.pattern, reason, candidates: candidates.slice(0, 5), who: 'none', word: '未回答の問題' });
+  }
+
+  async alarm() {
+    const room = await this.loadRoom();
+    if (!room || !room.started || room.ended) return;
+    const now = Date.now();
+    if (room.matchDeadline && now >= room.matchDeadline) {
+      if (room.position === 3 && room.config.overtime === 'sudden') {
+        room.inOvertime = true; room.matchDeadline = 0;
+      } else {
+        room.ended = true;
+        room.result = room.position === 3 ? { winner: null, detail: '時間切れまでに差がつきませんでした。' } : { winner: room.position > 3 ? 'red' : 'blue', detail: '時間切れ。塗り替えたマスの数で勝敗が決まりました。' };
+      }
+    } else if (room.questionDeadline && now >= room.questionDeadline) {
+      await this.recordUnanswered('制限時間終了');
+      this.makeQuestion(await this.loadDictionary());
+    }
+    await this.saveRoom();
+    await this.broadcast();
+  }
+
+  async scheduleAlarm() {
+    if (!this.room || !this.room.started || this.room.ended) { await this.ctx.storage.deleteAlarm(); return; }
+    const deadlines = [this.room.matchDeadline, this.room.questionDeadline].filter(n => n > 0);
+    if (!deadlines.length) { await this.ctx.storage.deleteAlarm(); return; }
+    await this.ctx.storage.setAlarm(Math.min(...deadlines));
+  }
+
+  stateForClient() {
+    const r = this.room;
+    return {
+      config: r.config, players: { red: { connected: r.players.red.connected }, blue: { connected: r.players.blue.connected } },
+      started: r.started, ended: r.ended, inOvertime: r.inOvertime, position: r.position, pattern: r.pattern,
+      questionId: r.questionId, history: r.history, lastSuccess: r.lastSuccess, passed: r.passed,
+      matchDeadline: r.matchDeadline, questionDeadline: r.questionDeadline, result: r.result
+    };
+  }
+  async broadcast() {
+    await this.loadRoom(); if (!this.room) return;
+    const message = JSON.stringify({ type: 'state', state: this.stateForClient() });
+    for (const ws of this.ctx.getWebSockets()) { try { ws.send(message); } catch {} }
+  }
+  send(ws, message) { try { ws.send(JSON.stringify(message)); } catch {} }
+  sendRole(role, message) {
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() || {};
+      if (a.role === role) this.send(ws, message);
+    }
+  }
+  async webSocketClose(ws) {
+    const a = ws.deserializeAttachment() || {};
+    const room = await this.loadRoom();
+    if (room && room.players[a.role] && room.players[a.role].token === a.token) {
+      room.players[a.role].connected = false;
+      await this.saveRoom(); await this.broadcast();
+    }
+  }
+  async webSocketError(ws) { await this.webSocketClose(ws); }
+}
+
+function normalizeConfig(input = {}) {
+  const lengthMin = clamp(Number(input.lengthMin) || 3, 3, 10);
+  const lengthMax = clamp(Number(input.lengthMax) || 6, lengthMin, 10);
+  return {
+    lengthMin, lengthMax,
+    revealed: clamp(Number(input.revealed) || 0, 0, 5),
+    matchTime: Math.max(0, Number(input.matchTime) || 0),
+    questionTime: Math.max(0, Number(input.questionTime) || 0),
+    overtime: input.overtime === 'draw' ? 'draw' : 'sudden'
+  };
+}
+function matchesPattern(word, pattern) {
+  const chars = [...word], mask = [...pattern];
+  return chars.length === mask.length && mask.every((char, i) => char === '〇' || char === chars[i]);
+}
+function randomCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(6); crypto.getRandomValues(bytes);
+  return [...bytes].map(byte => alphabet[byte % alphabet.length]).join('');
+}
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+}
