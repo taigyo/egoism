@@ -49,3 +49,24 @@
 @media(max-width:520px){.battle-layout{padding-top:12px}.dual-range{margin-top:3px}.range-values{font-size:12px}.track-cell{border-radius:50%}.center-cell{border-radius:50%}}
 .match-name strong{font-size:12px}
 .desktop-problem strong.slide-in-text,.problem-card strong.slide-in-text{animation:slideInText .55s cubic-bezier(.2,.8,.2,1) both}
+
+
+/* Motion and controls refinement: restartable text slides and directional territory wipes */
+.desktop-problem strong,.problem-card strong{animation:none}
+.slide-in-text{animation:slideInText .55s cubic-bezier(.2,.8,.2,1) both}
+.success-banner.show{animation:slideIn .6s cubic-bezier(.2,.8,.2,1) both}
+.success-banner.show .slide-in-text{animation:slideInText .55s cubic-bezier(.2,.8,.2,1) both}
+.track-cell{overflow:hidden;isolation:isolate;transition:border-color 1s cubic-bezier(.22,.75,.25,1)}
+.track-cell::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;transform:scaleX(0)}
+.captured-red::before{background:var(--blue);transform:scaleX(1);transform-origin:right;animation:wipeToRed 1s cubic-bezier(.22,.75,.25,1) both}
+.captured-blue::before{background:var(--red);transform:scaleX(1);transform-origin:left;animation:wipeToBlue 1s cubic-bezier(.22,.75,.25,1) both}
+@keyframes wipeToRed{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@keyframes wipeToBlue{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.single-range{display:block;width:100%;height:30px!important;margin:5px 0 0;padding:0!important;border:0!important;background:transparent!important;appearance:none;-webkit-appearance:none;accent-color:var(--red);cursor:pointer}
+.single-range::-webkit-slider-runnable-track{height:4px;background:#d3ccbd;border-radius:99px}
+.single-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;margin-top:-7px;border:2px solid var(--white);border-radius:50%;background:var(--red);box-shadow:0 0 0 1px var(--red)}
+.single-range::-moz-range-track{height:4px;background:#d3ccbd;border-radius:99px}
+.single-range::-moz-range-thumb{width:14px;height:14px;border:2px solid var(--white);border-radius:50%;background:var(--red);box-shadow:0 0 0 1px var(--red)}
+.range-endpoints{margin-top:-4px}
+@media(prefers-reduced-motion:reduce){.track-cell::before,.slide-in-text,.success-banner.show{animation:none!important}}
+.captured-red,.captured-blue{animation:none!important}
