@@ -55,7 +55,8 @@ function readConfig() {
   return {
     lengthMin: Number($('length-min').value),
     lengthMax: Number($('length-max').value),
-    revealed: Number($('revealed-count').value),
+    revealedMin: Number($('revealed-min').value),
+    revealedMax: Number($('revealed-max').value),
     matchTime: Number($('match-time').value),
     questionTime: Number($('question-time').value),
     overtime: $('overtime').value
@@ -82,9 +83,12 @@ function animateQuestionText() {
   for (const id of ['pattern-desktop', 'pattern-mobile']) {
     const el = $(id);
     if (!el) continue;
-    el.classList.remove('slide-in-text');
-    void el.offsetWidth;
-    el.classList.add('slide-in-text');
+    // Use Web Animations API directly instead of relying on CSS animation cascade.
+    el.getAnimations().forEach(animation => animation.cancel());
+    el.animate(
+      [{ opacity: 0, transform: 'translateX(-18px)' }, { opacity: 1, transform: 'translateX(0)' }],
+      { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' }
+    );
   }
 }
 function buildQuestion() {
@@ -92,7 +96,9 @@ function buildQuestion() {
   const keys = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && w.length >= config.lengthMin && w.length <= config.lengthMax);
   if (!keys.length) { $('answer-message').textContent = 'この条件に合う単語がありません。文字数を変えてください。'; return; }
   currentAnswer = keys[Math.floor(Math.random() * keys.length)];
-  const n = clamp(config.revealed, 0, currentAnswer.length);
+  const revealedLow = Math.min(config.revealedMin ?? 1, config.revealedMax ?? 3);
+  const revealedHigh = Math.max(config.revealedMin ?? 1, config.revealedMax ?? 3);
+  const n = Math.min(currentAnswer.length, revealedLow + Math.floor(Math.random() * (revealedHigh - revealedLow + 1))); 
   const indexes = [...currentAnswer].map((_, i) => i).sort(() => Math.random() - .5).slice(0, n);
   const chars = [...'〇'.repeat(currentAnswer.length)];
   indexes.forEach(i => chars[i] = currentAnswer[i]);
@@ -118,13 +124,25 @@ function updateBoard(previous = position, animate = true) {
   cells.forEach((cell, i) => {
     const wasRed = i < previous;
     const isRed = i < position;
+    const changed = animate && wasRed !== isRed;
+    const oldColor = getComputedStyle(cell).backgroundColor;
+    cell.querySelectorAll('.territory-wipe').forEach(node => node.remove());
     cell.classList.remove('captured-red', 'captured-blue');
-    // Flush the removal first so the same cell can animate again on later turns.
-    void cell.offsetWidth;
     cell.classList.toggle('red-territory', isRed);
     cell.classList.toggle('blue-territory', !isRed);
-    if (animate && wasRed !== isRed) {
-      cell.classList.add(isRed ? 'captured-red' : 'captured-blue');
+    if (changed) {
+      // Animate a real overlay element with the Web Animations API. This avoids
+      // CSS animation overrides and makes the old color visibly wipe away.
+      const wipe = document.createElement('span');
+      wipe.className = 'territory-wipe';
+      wipe.style.backgroundColor = oldColor;
+      wipe.style.transformOrigin = isRed ? 'right center' : 'left center';
+      cell.appendChild(wipe);
+      const animation = wipe.animate(
+        [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+        { duration: 1000, easing: 'cubic-bezier(.22,.75,.25,1)', fill: 'forwards' }
+      );
+      animation.onfinish = () => wipe.remove();
     }
   });
 }
@@ -208,17 +226,25 @@ function startDemo() {
   updateBoard(3, false); goTo('battle'); buildQuestion(); startMatchTimer();
 }
 
-function syncLengthRange(changed) {
-  const min = $('length-min'), max = $('length-max');
-  if (Number(min.value) > Number(max.value)) { if (changed === 'length-min') max.value = min.value; else min.value = max.value; }
-  $('length-min-label').textContent = min.value; $('length-max-label').textContent = max.value;
-  const low = (Number(min.value) - 3) / 7 * 100, high = (Number(max.value) - 3) / 7 * 100;
-  $('length-range-fill').style.left = low + '%'; $('length-range-fill').style.width = (high - low) + '%';
+function syncDualRange(prefix, minAllowed, maxAllowed) {
+  const min = $(`${prefix}-min`), max = $(`${prefix}-max`);
+  if (Number(min.value) > Number(max.value)) {
+    if (document.activeElement === min) max.value = min.value;
+    else min.value = max.value;
+  }
+  const minValue = Number(min.value), maxValue = Number(max.value);
+  const low = (minValue - minAllowed) / (maxAllowed - minAllowed) * 100;
+  const high = (maxValue - minAllowed) / (maxAllowed - minAllowed) * 100;
+  $(`${prefix}-range-fill`).style.left = low + '%';
+  $(`${prefix}-range-fill`).style.width = (high - low) + '%';
+  $(`${prefix}-range-label`).textContent = `${minValue}～${maxValue}文字`;
 }
-$('length-min').addEventListener('input', () => syncLengthRange('length-min'));
-$('length-max').addEventListener('input', () => syncLengthRange('length-max'));
-$('revealed-count').addEventListener('input', () => { $('revealed-count-label').textContent = Number($('revealed-count').value) === 0 ? '公開なし' : $('revealed-count').value + '文字'; });
-syncLengthRange('length-min');
+$('length-min').addEventListener('input', () => syncDualRange('length', 3, 10));
+$('length-max').addEventListener('input', () => syncDualRange('length', 3, 10));
+$('revealed-min').addEventListener('input', () => syncDualRange('revealed', 0, 10));
+$('revealed-max').addEventListener('input', () => syncDualRange('revealed', 0, 10));
+syncDualRange('length', 3, 10);
+syncDualRange('revealed', 0, 10);
 $('settings-form').addEventListener('submit', e => e.preventDefault());
 
 function setRoomMessage(message) { $('room-message').textContent = message; }

@@ -118,7 +118,9 @@ export class GameRoom {
     const answer = pool[Math.floor(Math.random() * pool.length)];
     room.answer = answer;
     room.usedWords.push(answer);
-    const count = Math.min(room.config.revealed, [...answer].length);
+    const revealLow = Math.min(room.config.revealedMin, room.config.revealedMax);
+    const revealHigh = Math.max(room.config.revealedMin, room.config.revealedMax);
+    const count = Math.min([...answer].length, revealLow + Math.floor(Math.random() * (revealHigh - revealLow + 1)));
     const indexes = [...answer].map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, count);
     const pattern = [...'〇'.repeat([...answer].length)];
     indexes.forEach(i => pattern[i] = [...answer][i]);
@@ -248,9 +250,12 @@ export class GameRoom {
 function normalizeConfig(input = {}) {
   const lengthMin = clamp(Number(input.lengthMin) || 3, 3, 10);
   const lengthMax = clamp(Number(input.lengthMax) || 6, lengthMin, 10);
+  const revealA = clamp(Number(input.revealedMin) || 0, 0, 10);
+  const revealB = clamp(Number(input.revealedMax) || 0, 0, 10);
   return {
     lengthMin, lengthMax,
-    revealed: clamp(Number(input.revealed) || 0, 0, 5),
+    revealedMin: Math.min(revealA, revealB),
+    revealedMax: Math.max(revealA, revealB),
     matchTime: Math.max(0, Number(input.matchTime) || 0),
     questionTime: Math.max(0, Number(input.questionTime) || 0),
     overtime: input.overtime === 'draw' ? 'draw' : 'sudden'
