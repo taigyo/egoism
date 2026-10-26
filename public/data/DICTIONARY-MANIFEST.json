@@ -1,0 +1,29 @@
+{
+  "version": "v12",
+  "dictionary_sources": [
+    "Wiktionary-derived wty-ja-ja (existing v11 data)",
+    "mecab-ipadic-NEologd diff/new_entries_from_20150623_until_head.tsv.gz"
+  ],
+  "readings": 288270,
+  "written_form_candidates": 409401,
+  "neologd_added_reading_surface_pairs": 324885,
+  "meaning_policy": "Words without meaning entries are accepted; result screen may show no definition for them.",
+  "shards": [
+    {
+      "file": "words-1.json",
+      "readings": 72068
+    },
+    {
+      "file": "words-2.json",
+      "readings": 72068
+    },
+    {
+      "file": "words-3.json",
+      "readings": 72067
+    },
+    {
+      "file": "words-4.json",
+      "readings": 72067
+    }
+  ]
+}

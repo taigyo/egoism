@@ -11,7 +11,7 @@ const app = read('public/app.js');
 const css = read('public/style.css');
 const worker = read('src/worker.js');
 const config = JSON.parse(read('wrangler.jsonc'));
-const dictionary = JSON.parse(read('public/data/words.json'));
+const dictionary = Object.assign({}, ...[1, 2, 3, 4].map(i => JSON.parse(read(`public/data/words-${i}.json`))));
 
 const idList = [...html.matchAll(/\bid=["']([^"']+)["']/g)].map(match => match[1]);
 const idSet = new Set(idList);
@@ -39,4 +39,4 @@ if (!css.includes('.territory-wipe') || !css.includes('!important')) fail('Terri
 if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('A removed legacy board element is still present.');
 
 if (process.exitCode) process.exit(process.exitCode);
-console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} Wiktionary readings, definitions, Cloudflare config, and territory animations.`);
+console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} combined dictionary readings, definitions, Cloudflare config, and territory animations.`);

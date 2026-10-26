@@ -47,10 +47,14 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
 
 async function loadDictionary() {
   try {
-    const r = await fetch('/data/words.json');
-    if (!r.ok) throw Error(`HTTP ${r.status}`);
-    dictionary = await r.json();
-    $('dictionary-status').textContent = `収録：${Object.keys(dictionary).length.toLocaleString()}種類の読み（Wiktionary由来辞書）`;
+    const shardFiles = ['/data/words-1.json', '/data/words-2.json', '/data/words-3.json', '/data/words-4.json'];
+    const dictionaries = await Promise.all(shardFiles.map(async file => {
+      const response = await fetch(file);
+      if (!response.ok) throw Error(`${file}: HTTP ${response.status}`);
+      return response.json();
+    }));
+    dictionary = Object.assign({}, ...dictionaries);
+    $('dictionary-status').textContent = `収録：約${Object.keys(dictionary).length.toLocaleString()}種類の読み（複数辞書統合）`;
   } catch (e) {
     $('dictionary-status').textContent = '辞書を読み込めません。Cloudflare Workers経由で開いてください。';
     console.error(e);

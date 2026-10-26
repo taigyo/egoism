@@ -18,3 +18,11 @@ Changes made for this game
 
 Attribution and share-alike
 The underlying Wiktionary text is made available under CC BY-SA 4.0 and GFDL as described by Wiktionary. The adapted dictionary/definition data in this project is provided under CC BY-SA 4.0. If redistributing this data or a modified version, retain this notice, credit the source projects, link the license, indicate changes, and comply with the share-alike terms. This attribution does not imply endorsement by Wiktionary contributors, Kaikki, or WTY contributors.
+
+
+Additional vocabulary source: mecab-ipadic-NEologd
+- Project: https://github.com/neologd/mecab-ipadic-neologd
+- Source file used: diff/new_entries_from_20150623_until_head.tsv.gz (from the supplied mecab-ipadic-neologd repository archive)
+- Source notice: see NEologd-COPYING.txt included with this project. The source notice identifies Apache License 2.0 and discusses upstream data sources/attributions; retain and review those terms when redistributing.
+- Changes made: selected standalone noun entries, converted katakana readings to hiragana, grouped written forms by reading, and merged them with the existing Wiktionary-derived dictionary. Duplicates were removed. No NEologd definitions were imported, so some accepted words have no meaning displayed in the result screen.
+- This combined data contains material from multiple sources with different terms; the applicable notice for each source must be retained.
