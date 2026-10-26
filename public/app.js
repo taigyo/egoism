@@ -50,7 +50,7 @@ async function loadDictionary() {
     const r = await fetch('/data/words.json');
     if (!r.ok) throw Error(`HTTP ${r.status}`);
     dictionary = await r.json();
-    $('dictionary-status').textContent = `収録：${Object.keys(dictionary).length.toLocaleString()}種類の読み（SKK辞書加工データ）`;
+    $('dictionary-status').textContent = `収録：${Object.keys(dictionary).length.toLocaleString()}種類の読み（Wiktionary由来辞書）`;
   } catch (e) {
     $('dictionary-status').textContent = '辞書を読み込めません。Cloudflare Workers経由で開いてください。';
     console.error(e);
@@ -429,6 +429,15 @@ function applyServerState(state) {
   const oldState = lastServerState;
   const oldVisualPosition = oldState ? (playerRole === 'blue' ? 6 - oldState.position : oldState.position) : (playerRole === 'blue' ? 6 - state.position : state.position);
   const wasEnded = !!oldState?.ended;
+  // A rematch starts a fresh match. Clear the previous winning word even if the
+  // server resets questionId to a value that matches the previous match.
+  if (wasEnded && !state.ended) {
+    lastQuestionId = 0;
+    lastSuccessKey = '';
+    $('success-banner').classList.remove('show');
+    $('success-reading').textContent = '';
+    $('success-forms').textContent = '';
+  }
   lastServerState = state;
   position = playerRole === 'blue' ? 6 - state.position : state.position;
   config = state.config || config;

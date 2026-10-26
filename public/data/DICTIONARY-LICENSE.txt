@@ -1,0 +1,20 @@
+Wiktionary-derived dictionary data — source and license
+
+Dictionary source
+- Downloaded dictionary: wty-ja-ja (Japanese → Japanese), revision 2026.10.22
+- WTY project: https://github.com/yomidevs/wiktionary-to-yomitan
+- WTY download page: https://yomidevs.github.io/wiktionary-to-yomitan/download/
+- WTY metadata credits Kaikki: https://kaikki.org/
+- Original Japanese Wiktionary: https://ja.wiktionary.org/
+- Wiktionary copyright policy: https://ja.wiktionary.org/wiki/Wiktionary:著作権
+- Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0): https://creativecommons.org/licenses/by-sa/4.0/deed.ja
+
+Changes made for this game
+- Replaced the previous SKK-JISYO.L answer dictionary entirely with entries extracted from wty-ja-ja.
+- Normalized katakana readings to hiragana and grouped written forms by reading for gameplay.
+- Extracted up to three concise Japanese definitions per reading and written form from Yomitan structured content.
+- Omitted entries without a usable kana reading, since the game accepts hiragana readings.
+- Kept the original Wiktionary page link available in the results screen.
+
+Attribution and share-alike
+The underlying Wiktionary text is made available under CC BY-SA 4.0 and GFDL as described by Wiktionary. The adapted dictionary/definition data in this project is provided under CC BY-SA 4.0. If redistributing this data or a modified version, retain this notice, credit the source projects, link the license, indicate changes, and comply with the share-alike terms. This attribution does not imply endorsement by Wiktionary contributors, Kaikki, or WTY contributors.

@@ -23,9 +23,11 @@ const missingIds = [...new Set(referencedIds.filter(id => !idSet.has(id)))];
 if (missingIds.length) fail(`JavaScript references missing HTML IDs: ${missingIds.join(', ')}`);
 
 if (!Object.keys(dictionary).length) fail('Dictionary is empty.');
-if (!Array.isArray(dictionary['なたでここ']) || !dictionary['なたでここ'].includes('ナタデココ')) {
-  fail('Dictionary sample entry なたでここ → ナタデココ is missing.');
+if (!Array.isArray(dictionary['ほご']) || !dictionary['ほご'].includes('保護')) {
+  fail('Wiktionary dictionary sample entry ほご → 保護 is missing.');
 }
+const meanings = JSON.parse(read('public/data/meanings.json'));
+if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
 if (!app.includes('wipe.animate(') || !app.includes('el.animate(')) fail('Territory and question animations are not driven by the Web Animations API.');
 if (!html.includes('class="time-settings-row"')) fail('Time settings are not grouped into one horizontal row.');
@@ -37,4 +39,4 @@ if (!css.includes('.territory-wipe') || !css.includes('!important')) fail('Terri
 if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('A removed legacy board element is still present.');
 
 if (process.exitCode) process.exit(process.exitCode);
-console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} dictionary readings, Cloudflare config, and territory animations.`);
+console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} Wiktionary readings, definitions, Cloudflare config, and territory animations.`);
