@@ -1,50 +1,54 @@
 {
-  "version": "v13",
+  "version": "v14",
   "dictionary_sources": [
     "Wiktionary-derived wty-ja-ja (existing v12 data; CC BY-SA 4.0)",
     "mecab-ipadic-NEologd diff/new_entries_from_20150623_until_head.tsv.gz (existing v12 data; see NEologd-COPYING.txt)",
-    "JMnedict [2026-08-10] via yomitan-import; derived from EDRDG Japanese names dictionary files (CC BY-SA 4.0)"
+    "JMnedict [2026-08-10] via yomitan-import; derived from EDRDG Japanese names dictionary files (CC BY-SA 4.0)",
+    "JA Wikipedia [2022-12-01] (v1.4.0), Yomitan dictionary by MarvNC; terms/readings extracted from DBpedia short abstracts dataset; see DICTIONARY-LICENSE.txt"
   ],
-  "readings": 647899,
-  "written_form_candidates": 1242315,
+  "readings": 1232483,
+  "written_form_candidates": 2035051,
   "neologd_added_reading_surface_pairs": 324885,
   "meaning_policy": "Words without meaning entries are accepted; result screen may show no definition for them. JMnedict was added for proper-name readings and written forms; names do not add definition text.",
   "shards": [
     {
       "file": "words-1.json",
-      "readings": 80987
+      "readings": 154061
     },
     {
       "file": "words-2.json",
-      "readings": 80987
+      "readings": 154061
     },
     {
       "file": "words-3.json",
-      "readings": 80988
+      "readings": 154061
     },
     {
       "file": "words-4.json",
-      "readings": 80987
+      "readings": 154061
     },
     {
       "file": "words-5.json",
-      "readings": 80987
+      "readings": 154061
     },
     {
       "file": "words-6.json",
-      "readings": 80988
+      "readings": 154061
     },
     {
       "file": "words-7.json",
-      "readings": 80987
+      "readings": 154061
     },
     {
       "file": "words-8.json",
-      "readings": 80988
+      "readings": 154056
     }
   ],
-  "reading_written_form_pairs": 1388785,
+  "reading_written_form_pairs": 2035051,
   "jmnedict_added_pairs": 691114,
   "jmnedict_source_entries": 667837,
-  "jmnedict_valid_reading_instances": 768154
+  "jmnedict_valid_reading_instances": 768154,
+  "wikipedia_source_entries": 1279999,
+  "wikipedia_valid_reading_pairs": 780136,
+  "wikipedia_added_pairs": 646266
 }

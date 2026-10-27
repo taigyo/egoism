@@ -39,3 +39,17 @@ Additional vocabulary source: JMnedict (Japanese names dictionary)
 - Attribution: This project uses data from JMnedict, the Japanese names dictionary maintained by EDRDG. The supplied Yomitan package states that it includes material from the JMdict/EDICT family in accordance with EDRDG's licence provisions.
 - Changes made for this game: extracted name expressions and readings; where the reading field was empty, used kana reading values from the glossary field; converted katakana readings to hiragana; merged with the existing reading-to-written-form dictionary; removed duplicate reading/form pairs; did not import JMnedict definitions into the meaning display.
 - The combined dictionary contains adapted data from multiple sources. Retain this notice and the source-specific notices when redistributing. The EDRDG licence requires attribution and share-alike terms for derived dictionary data, and states that applications using the data should provide source acknowledgements and links to the documentation/licence. Review the official licence for the complete conditions.
+
+
+Additional vocabulary source: JA Wikipedia [2022-12-01] (v1.4.0)
+
+- Yomitan dictionary project: https://github.com/MarvNC/wikipedia-yomitan
+- Dictionary download metadata: https://github.com/MarvNC/yomitan-dictionaries
+- Original content source: Japanese Wikipedia, contributors; DBpedia short abstracts dataset.
+- Source dataset: https://databus.dbpedia.org/dbpedia/text/short-abstracts
+- Attribution: https://ja.wikipedia.org/ and https://www.dbpedia.org/
+- Licensing: DBpedia-derived Wikipedia text is distributed under Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA 3.0) and GNU Free Documentation License (GFDL), subject to the applicable source terms. See https://www.dbpedia.org/imprint/ and https://www.dbpedia.org/about/.
+- Changes made for this game: extracted title/surface-form and kana-reading pairs from the Yomitan term banks; converted katakana readings to hiragana; grouped forms by reading; removed duplicate reading/form pairs; did not import Wikipedia abstract text into the in-game meaning database.
+- Results include a Wikipedia link based on the displayed written form for attribution and lookup. Because some dictionary entries have variant spellings, the generated link may not correspond to a distinct article for every candidate.
+- The Yomitan dictionary builder's code is separately licensed under MIT; that code license does not replace the license for source-derived data.
+- Retain this notice, credit Wikipedia contributors and DBpedia, link the applicable license, and comply with the share-alike requirements when redistributing this adapted vocabulary data.
