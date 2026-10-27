@@ -112,7 +112,7 @@ export class GameRoom {
         players: { red: { token: input.hostToken, connected: false }, blue: { token: null, connected: false } },
         started: false, ended: false, inOvertime: false, position: 3,
         pattern: '', answer: '', questionId: 0, history: [], lastSuccess: null, passed: [],
-        matchDeadline: 0, questionDeadline: 0, result: null, usedWords: [], rematchVotes: { red: false, blue: false }
+        matchDeadline: 0, questionDeadline: 0, result: null, usedWords: [], usedAnswers: [], rematchVotes: { red: false, blue: false }
       };
       await this.ctx.storage.put('room', this.room);
       return json({ ok: true });
@@ -152,8 +152,8 @@ export class GameRoom {
     this.room.started = true;
     const startAt = Date.now() + 3500;
     this.room.matchDeadline = this.room.config.matchTime > 0 ? startAt + this.room.config.matchTime * 1000 : 0;
-    this.makeQuestion(dict);
-    this.room.questionDeadline = this.room.config.questionTime > 0 ? startAt + this.room.config.questionTime * 1000 : 0;
+    if (!this.makeQuestion(dict)) this.endForWordExhaustion();
+    this.room.questionDeadline = this.room.ended ? 0 : this.room.config.questionTime > 0 ? startAt + this.room.config.questionTime * 1000 : 0;
     await this.saveRoom();
   }
 
@@ -161,9 +161,9 @@ export class GameRoom {
     const room = this.room;
     const keys = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && word.length >= room.config.lengthMin && word.length <= room.config.lengthMax);
     if (!keys.length) throw new Error('設定に合う読みがありません。');
-    const available = keys.filter(word => !room.usedWords.includes(word));
-    const pool = available.length ? available : keys;
-    const answer = pool[Math.floor(Math.random() * pool.length)];
+    const available = keys.filter(word => !room.usedWords.includes(word) && !(room.usedAnswers || []).includes(word));
+    if (!available.length) return false;
+    const answer = available[Math.floor(Math.random() * available.length)];
     room.answer = answer;
     room.usedWords.push(answer);
     const revealLow = Math.min(room.config.revealedMin, room.config.revealedMax);
@@ -176,6 +176,16 @@ export class GameRoom {
     room.questionId += 1;
     room.passed = [];
     room.questionDeadline = room.config.questionTime > 0 ? Date.now() + room.config.questionTime * 1000 : 0;
+    return true;
+  }
+
+  endForWordExhaustion() {
+    this.room.ended = true;
+    this.room.answer = '';
+    this.room.pattern = '';
+    this.room.matchDeadline = 0;
+    this.room.questionDeadline = 0;
+    this.room.result = { winner: null, detail: 'この試合で使える言葉がなくなりました。' };
   }
 
   async webSocketMessage(ws, message) {
@@ -196,7 +206,7 @@ export class GameRoom {
         if (room.rematchVotes.red && room.rematchVotes.blue) {
           room.started = false; room.ended = false; room.inOvertime = false; room.position = 3;
           room.pattern = ''; room.answer = ''; room.questionId = 0; room.history = []; room.lastSuccess = null; room.passed = [];
-          room.matchDeadline = 0; room.questionDeadline = 0; room.result = null; room.usedWords = [];
+          room.matchDeadline = 0; room.questionDeadline = 0; room.result = null; room.usedWords = []; room.usedAnswers = [];
           room.rematchVotes = { red: false, blue: false };
           await this.startMatch(); await this.broadcast();
         } else { await this.saveRoom(); await this.broadcast(); }
@@ -216,6 +226,9 @@ export class GameRoom {
     const dict = await this.loadDictionary();
     if (!/^[ぁ-ゖー]+$/.test(word)) { this.sendRole(role, { type: 'error', message: 'ひらがなで入力してください。' }); return; }
     if (!dict[word] || !matchesPattern(word, room.pattern)) { this.sendRole(role, { type: 'error', message: '読みが問題の条件に合いません。' }); return; }
+    room.usedAnswers = room.usedAnswers || [];
+    if (room.usedAnswers.includes(word) || (room.usedWords.includes(word) && word !== room.answer)) { this.sendRole(role, { type: 'error', message: 'この試合ですでに使われた言葉です。別の言葉を試してください。' }); return; }
+    room.usedAnswers.push(word);
     const forms = [...new Set(dict[word] || [])];
     room.history.push({ word, who: role, forms });
     room.lastSuccess = { reading: word, forms, questionId: room.questionId };
@@ -227,7 +240,7 @@ export class GameRoom {
       room.position = Math.max(0, Math.min(6, room.position + (role === 'red' ? 1 : -1)));
       if (room.position === 6) { room.ended = true; room.result = { winner: 'red', detail: '6マスすべてを赤に塗り替えました。' }; }
       else if (room.position === 0) { room.ended = true; room.result = { winner: 'blue', detail: '6マスすべてを青に塗り替えました。' }; }
-      else this.makeQuestion(await this.loadDictionary());
+      else if (!this.makeQuestion(await this.loadDictionary())) this.endForWordExhaustion();
     }
     await this.saveRoom();
     await this.broadcast();
@@ -238,7 +251,7 @@ export class GameRoom {
     if (!room.passed.includes(role)) room.passed.push(role);
     if (room.passed.length >= 2) {
       await this.recordUnanswered('両者パス');
-      this.makeQuestion(await this.loadDictionary());
+      if (!this.makeQuestion(await this.loadDictionary())) this.endForWordExhaustion();
     }
     await this.saveRoom();
     await this.broadcast();
@@ -271,7 +284,7 @@ export class GameRoom {
       }
     } else if (room.questionDeadline && now >= room.questionDeadline) {
       await this.recordUnanswered('制限時間終了');
-      this.makeQuestion(await this.loadDictionary());
+      if (!this.makeQuestion(await this.loadDictionary())) this.endForWordExhaustion();
     }
     await this.saveRoom();
     await this.broadcast();
