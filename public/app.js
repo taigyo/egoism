@@ -2,6 +2,7 @@
 const screens = [...document.querySelectorAll('.screen')];
 const $ = id => document.getElementById(id);
 let dictionary = null;
+let properNounReadings = new Set();
 let meaningDictionary = null;
 let meaningDictionaryPromise = null;
 let wikipediaMeaningDictionary = {};
@@ -59,6 +60,10 @@ async function loadDictionary() {
       return response.json();
     }));
     dictionary = Object.assign({}, ...dictionaries);
+    try {
+      const properResponse = await fetch('/data/proper-noun-readings.json');
+      if (properResponse.ok) properNounReadings = new Set(await properResponse.json());
+    } catch (error) { console.warn('固有名詞候補リストを読み込めませんでした', error); }
     $('dictionary-status').textContent = `収録：約${Object.keys(dictionary).length.toLocaleString()}種類の読み（複数辞書統合）`;
   } catch (e) {
     $('dictionary-status').textContent = '辞書を読み込めません。Cloudflare Workers経由で開いてください。';
@@ -114,10 +119,29 @@ async function loadWikipediaMeaningsForHistory(entries) {
   }));
 }
 
+function collectMeaningDefinitions(reading, forms) {
+  const definitions = [];
+  for (const form of [...new Set(forms || [])]) {
+    definitions.push(...(meaningDictionary?.[reading]?.[form] || []));
+    definitions.push(...(wikipediaMeaningDictionary?.[reading]?.[form] || []));
+  }
+  return [...new Set(definitions.filter(value => typeof value === 'string' && value.trim()))];
+}
+function pickRandomMeaning(reading, forms) {
+  const definitions = collectMeaningDefinitions(reading, forms);
+  return definitions.length ? definitions[Math.floor(Math.random() * definitions.length)] : '';
+}
+async function loadMeaningsForWord(reading, forms) {
+  await loadMeaningDictionary();
+  await loadWikipediaMeaningsForHistory([{ word: reading, forms }]);
+  return pickRandomMeaning(reading, forms);
+}
+
 function readConfig() {
   return {
     lengthMin: Number($('length-min').value),
     lengthMax: Number($('length-max').value),
+    difficulty: $('difficulty-level').value,
     revealedMin: Number($('revealed-min').value),
     revealedMax: Number($('revealed-max').value),
     matchTime: Number($('match-time').value),
@@ -139,6 +163,21 @@ function normalizeInput(value) {
   }
   return out;
 }
+function classifyWordDifficulty(reading, forms = []) {
+  if (properNounReadings.has(String(reading || ''))) return 'advanced';
+  const chars = [...String(reading || '')];
+  const safeForms = [...new Set(Array.isArray(forms) ? forms.filter(form => typeof form === 'string') : [])];
+  const isComplexForm = form => /[\u3400-\u4DBF\u{20000}-\u{2FA1F}]/u.test(form) || [...form].length >= 8 || (form.match(/[一-龯]/g) || []).length >= 5;
+  const isIntermediateForm = form => /[ァ-ヺ]/.test(form) || (form.match(/[一-龯]/g) || []).length >= 3;
+  const allFormsComplex = safeForms.length > 0 && safeForms.every(isComplexForm);
+  const allFormsIntermediate = safeForms.length > 0 && safeForms.every(isIntermediateForm);
+  if (chars.length >= 7 || allFormsComplex) return 'advanced';
+  if (chars.length >= 5 || allFormsIntermediate) return 'intermediate';
+  return 'beginner';
+}
+function matchesDifficulty(reading, forms, difficulty) {
+  return difficulty === 'unlimited' || classifyWordDifficulty(reading, forms) === difficulty;
+}
 function matchesPattern(word, pattern) {
   return [...word].length === [...pattern].length && [...pattern].every((ch, i) => ch === '〇' || ch === [...word][i]);
 }
@@ -156,8 +195,8 @@ function animateQuestionText() {
 }
 function buildQuestion() {
   if (!dictionary) { $('answer-message').textContent = '辞書を読み込み中です。少し待ってから再試行してください。'; return; }
-  const eligible = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && w.length >= config.lengthMin && w.length <= config.lengthMax);
-  if (!eligible.length) { $('answer-message').textContent = 'この条件に合う単語がありません。文字数を変えてください。'; return; }
+  const eligible = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && w.length >= config.lengthMin && w.length <= config.lengthMax && matchesDifficulty(w, dictionary[w], config.difficulty || 'unlimited'));
+  if (!eligible.length) { $('answer-message').textContent = 'この難易度と文字数に合う単語がありません。難易度または文字数を変えてください。'; return; }
   const keys = eligible.filter(w => !usedQuestionWords.has(w) && !usedAnswerWords.has(w));
   if (!keys.length) {
     currentAnswer = ''; currentPattern = '';
@@ -188,7 +227,7 @@ function buildQuestion() {
 }
 function recordUnanswered(reason) {
   if (questionRecorded || !currentAnswer || !dictionary) return;
-  const candidates = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && matchesPattern(w, currentPattern) && !usedAnswerWords.has(w));
+  const candidates = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && matchesDifficulty(w, dictionary[w], config.difficulty || 'unlimited') && matchesPattern(w, currentPattern) && !usedAnswerWords.has(w));
   gameHistory.push({ unanswered: true, pattern: currentPattern, reason, candidates: candidates.sort(() => Math.random() - .5).slice(0, 5), who: 'none', word: '未回答の問題' });
   questionRecorded = true;
 }
@@ -268,21 +307,9 @@ function renderGameHistory() {
     }
     content.append(word, forms);
     if (!entry.unanswered) {
-      let found = [];
-      if (meaningDictionary && meaningDictionary[entry.word]) {
-        for (const form of [...new Set(entry.forms || [])]) {
-          const defs = meaningDictionary[entry.word][form];
-          if (defs && defs.length) { found = defs; break; }
-        }
-      }
-      if (!found.length && wikipediaMeaningDictionary[entry.word]) {
-        for (const form of [...new Set(entry.forms || [])]) {
-          const defs = wikipediaMeaningDictionary[entry.word][form];
-          if (defs && defs.length) { found = defs; break; }
-        }
-      }
-      if (found.length) {
-        const fullText = [...new Set(found)].join(' ／ ');
+      const selectedMeaning = entry.selectedMeaning || pickRandomMeaning(entry.word, entry.forms || []);
+      if (selectedMeaning) {
+        const fullText = selectedMeaning;
         const definition = document.createElement('small');
         definition.className = 'history-definition';
         const chars = Array.from(fullText);
@@ -349,10 +376,21 @@ function endGame(title, detail) {
   $('end-title').textContent = title; $('end-detail').textContent = detail;
   showEndOverlay();
 }
+let successMeaningRequest = 0;
 function showSuccess(word, formsOverride = null) {
   const forms = [...new Set(formsOverride || dictionary?.[word] || [])];
-  $('success-reading').textContent = word; $('success-forms').textContent = forms.slice(0, 10).join(' ・ ') || '表記候補なし';
+  const requestId = ++successMeaningRequest;
+  $('success-reading').textContent = word;
+  $('success-forms').textContent = forms.slice(0, 10).join(' ・ ') || '表記候補なし';
+  const meaning = $('success-meaning');
+  meaning.textContent = '';
+  meaning.classList.add('hidden');
   const banner = $('success-banner'); banner.classList.remove('show'); void banner.offsetWidth; banner.classList.add('show');
+  loadMeaningsForWord(word, forms).then(selected => {
+    if (requestId !== successMeaningRequest || $('success-reading').textContent !== word || !selected) return;
+    meaning.textContent = selected;
+    meaning.classList.remove('hidden');
+  }).catch(error => console.error('正解語の意味表示に失敗しました', error));
 }
 function acceptAnswer(word, who = 'red') {
   if (gameEnded) return;
