@@ -41,7 +41,7 @@ Additional vocabulary source: JMnedict (Japanese names dictionary)
 - The combined dictionary contains adapted data from multiple sources. Retain this notice and the source-specific notices when redistributing. The EDRDG licence requires attribution and share-alike terms for derived dictionary data, and states that applications using the data should provide source acknowledgements and links to the documentation/licence. Review the official licence for the complete conditions.
 
 
-Additional vocabulary source: JA Wikipedia [2022-12-01] (v1.4.0)
+Additional vocabulary and definition source: JA Wikipedia [2022-12-01] (v1.4.0)
 
 - Yomitan dictionary project: https://github.com/MarvNC/wikipedia-yomitan
 - Dictionary download metadata: https://github.com/MarvNC/yomitan-dictionaries
@@ -49,7 +49,7 @@ Additional vocabulary source: JA Wikipedia [2022-12-01] (v1.4.0)
 - Source dataset: https://databus.dbpedia.org/dbpedia/text/short-abstracts
 - Attribution: https://ja.wikipedia.org/ and https://www.dbpedia.org/
 - Licensing: DBpedia-derived Wikipedia text is distributed under Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA 3.0) and GNU Free Documentation License (GFDL), subject to the applicable source terms. See https://www.dbpedia.org/imprint/ and https://www.dbpedia.org/about/.
-- Changes made for this game: extracted title/surface-form and kana-reading pairs from the Yomitan term banks; converted katakana readings to hiragana; grouped forms by reading; removed duplicate reading/form pairs; did not import Wikipedia abstract text into the in-game meaning database.
-- Results include a Wikipedia link based on the displayed written form for attribution and lookup. Because some dictionary entries have variant spellings, the generated link may not correspond to a distinct article for every candidate.
+- Changes made for this game: extracted title/surface-form and kana-reading pairs from the Yomitan term banks; converted katakana readings to hiragana; grouped forms by reading; removed duplicate reading/form pairs. For matching reading/surface-form pairs already present in the answer dictionary, imported the Wikipedia/DBpedia short abstract as a fallback meaning when the existing dictionary has no definition. The abstract data is stored in 128 JSON shards and fetched lazily for only the readings needed by a match.
+- Result rows include a Wikipedia link based on the displayed written form for attribution and lookup. Because some dictionary entries have variant spellings, the generated link may not correspond to a distinct article for every candidate.
 - The Yomitan dictionary builder's code is separately licensed under MIT; that code license does not replace the license for source-derived data.
 - Retain this notice, credit Wikipedia contributors and DBpedia, link the applicable license, and comply with the share-alike requirements when redistributing this adapted vocabulary data.

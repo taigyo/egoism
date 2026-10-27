@@ -1,5 +1,5 @@
 {
-  "version": "v14",
+  "version": "v15",
   "dictionary_sources": [
     "Wiktionary-derived wty-ja-ja (existing v12 data; CC BY-SA 4.0)",
     "mecab-ipadic-NEologd diff/new_entries_from_20150623_until_head.tsv.gz (existing v12 data; see NEologd-COPYING.txt)",
@@ -9,7 +9,7 @@
   "readings": 1232483,
   "written_form_candidates": 2035051,
   "neologd_added_reading_surface_pairs": 324885,
-  "meaning_policy": "Words without meaning entries are accepted; result screen may show no definition for them. JMnedict was added for proper-name readings and written forms; names do not add definition text.",
+  "meaning_policy": "Words without meaning entries are accepted and show no definition text. Wiktionary-derived definitions remain in meanings.json. Wikipedia short abstracts are stored separately in 128 lazy-loaded JSON shards and are used as fallback definitions when no existing meaning is available.",
   "shards": [
     {
       "file": "words-1.json",
@@ -50,5 +50,649 @@
   "jmnedict_valid_reading_instances": 768154,
   "wikipedia_source_entries": 1279999,
   "wikipedia_valid_reading_pairs": 780136,
-  "wikipedia_added_pairs": 646266
+  "wikipedia_added_pairs": 646266,
+  "wikipedia_definition_pairs": 650207,
+  "wikipedia_definition_texts": 679930,
+  "wikipedia_meaning_shards": [
+    {
+      "file": "wiki-meanings-000.json",
+      "form_pairs": 5124,
+      "readings": 4809
+    },
+    {
+      "file": "wiki-meanings-001.json",
+      "form_pairs": 5076,
+      "readings": 4748
+    },
+    {
+      "file": "wiki-meanings-002.json",
+      "form_pairs": 5058,
+      "readings": 4748
+    },
+    {
+      "file": "wiki-meanings-003.json",
+      "form_pairs": 4893,
+      "readings": 4575
+    },
+    {
+      "file": "wiki-meanings-004.json",
+      "form_pairs": 5011,
+      "readings": 4722
+    },
+    {
+      "file": "wiki-meanings-005.json",
+      "form_pairs": 5114,
+      "readings": 4765
+    },
+    {
+      "file": "wiki-meanings-006.json",
+      "form_pairs": 5069,
+      "readings": 4722
+    },
+    {
+      "file": "wiki-meanings-007.json",
+      "form_pairs": 5080,
+      "readings": 4770
+    },
+    {
+      "file": "wiki-meanings-008.json",
+      "form_pairs": 5053,
+      "readings": 4760
+    },
+    {
+      "file": "wiki-meanings-009.json",
+      "form_pairs": 5061,
+      "readings": 4679
+    },
+    {
+      "file": "wiki-meanings-010.json",
+      "form_pairs": 4993,
+      "readings": 4699
+    },
+    {
+      "file": "wiki-meanings-011.json",
+      "form_pairs": 5208,
+      "readings": 4843
+    },
+    {
+      "file": "wiki-meanings-012.json",
+      "form_pairs": 5144,
+      "readings": 4835
+    },
+    {
+      "file": "wiki-meanings-013.json",
+      "form_pairs": 5179,
+      "readings": 4768
+    },
+    {
+      "file": "wiki-meanings-014.json",
+      "form_pairs": 5085,
+      "readings": 4766
+    },
+    {
+      "file": "wiki-meanings-015.json",
+      "form_pairs": 5087,
+      "readings": 4700
+    },
+    {
+      "file": "wiki-meanings-016.json",
+      "form_pairs": 5036,
+      "readings": 4712
+    },
+    {
+      "file": "wiki-meanings-017.json",
+      "form_pairs": 5077,
+      "readings": 4747
+    },
+    {
+      "file": "wiki-meanings-018.json",
+      "form_pairs": 5173,
+      "readings": 4843
+    },
+    {
+      "file": "wiki-meanings-019.json",
+      "form_pairs": 5046,
+      "readings": 4681
+    },
+    {
+      "file": "wiki-meanings-020.json",
+      "form_pairs": 5220,
+      "readings": 4839
+    },
+    {
+      "file": "wiki-meanings-021.json",
+      "form_pairs": 5108,
+      "readings": 4807
+    },
+    {
+      "file": "wiki-meanings-022.json",
+      "form_pairs": 4980,
+      "readings": 4695
+    },
+    {
+      "file": "wiki-meanings-023.json",
+      "form_pairs": 5187,
+      "readings": 4861
+    },
+    {
+      "file": "wiki-meanings-024.json",
+      "form_pairs": 5170,
+      "readings": 4832
+    },
+    {
+      "file": "wiki-meanings-025.json",
+      "form_pairs": 5085,
+      "readings": 4752
+    },
+    {
+      "file": "wiki-meanings-026.json",
+      "form_pairs": 5138,
+      "readings": 4788
+    },
+    {
+      "file": "wiki-meanings-027.json",
+      "form_pairs": 5006,
+      "readings": 4729
+    },
+    {
+      "file": "wiki-meanings-028.json",
+      "form_pairs": 5207,
+      "readings": 4858
+    },
+    {
+      "file": "wiki-meanings-029.json",
+      "form_pairs": 5117,
+      "readings": 4842
+    },
+    {
+      "file": "wiki-meanings-030.json",
+      "form_pairs": 5093,
+      "readings": 4742
+    },
+    {
+      "file": "wiki-meanings-031.json",
+      "form_pairs": 5134,
+      "readings": 4825
+    },
+    {
+      "file": "wiki-meanings-032.json",
+      "form_pairs": 5232,
+      "readings": 4849
+    },
+    {
+      "file": "wiki-meanings-033.json",
+      "form_pairs": 5057,
+      "readings": 4783
+    },
+    {
+      "file": "wiki-meanings-034.json",
+      "form_pairs": 5067,
+      "readings": 4729
+    },
+    {
+      "file": "wiki-meanings-035.json",
+      "form_pairs": 5066,
+      "readings": 4772
+    },
+    {
+      "file": "wiki-meanings-036.json",
+      "form_pairs": 4957,
+      "readings": 4654
+    },
+    {
+      "file": "wiki-meanings-037.json",
+      "form_pairs": 5153,
+      "readings": 4815
+    },
+    {
+      "file": "wiki-meanings-038.json",
+      "form_pairs": 5121,
+      "readings": 4803
+    },
+    {
+      "file": "wiki-meanings-039.json",
+      "form_pairs": 5185,
+      "readings": 4839
+    },
+    {
+      "file": "wiki-meanings-040.json",
+      "form_pairs": 5054,
+      "readings": 4759
+    },
+    {
+      "file": "wiki-meanings-041.json",
+      "form_pairs": 5104,
+      "readings": 4763
+    },
+    {
+      "file": "wiki-meanings-042.json",
+      "form_pairs": 4995,
+      "readings": 4708
+    },
+    {
+      "file": "wiki-meanings-043.json",
+      "form_pairs": 5040,
+      "readings": 4738
+    },
+    {
+      "file": "wiki-meanings-044.json",
+      "form_pairs": 5102,
+      "readings": 4786
+    },
+    {
+      "file": "wiki-meanings-045.json",
+      "form_pairs": 5025,
+      "readings": 4726
+    },
+    {
+      "file": "wiki-meanings-046.json",
+      "form_pairs": 5116,
+      "readings": 4814
+    },
+    {
+      "file": "wiki-meanings-047.json",
+      "form_pairs": 5177,
+      "readings": 4830
+    },
+    {
+      "file": "wiki-meanings-048.json",
+      "form_pairs": 5019,
+      "readings": 4787
+    },
+    {
+      "file": "wiki-meanings-049.json",
+      "form_pairs": 5102,
+      "readings": 4754
+    },
+    {
+      "file": "wiki-meanings-050.json",
+      "form_pairs": 4909,
+      "readings": 4597
+    },
+    {
+      "file": "wiki-meanings-051.json",
+      "form_pairs": 5011,
+      "readings": 4740
+    },
+    {
+      "file": "wiki-meanings-052.json",
+      "form_pairs": 4992,
+      "readings": 4703
+    },
+    {
+      "file": "wiki-meanings-053.json",
+      "form_pairs": 4994,
+      "readings": 4640
+    },
+    {
+      "file": "wiki-meanings-054.json",
+      "form_pairs": 5159,
+      "readings": 4839
+    },
+    {
+      "file": "wiki-meanings-055.json",
+      "form_pairs": 4982,
+      "readings": 4691
+    },
+    {
+      "file": "wiki-meanings-056.json",
+      "form_pairs": 5169,
+      "readings": 4798
+    },
+    {
+      "file": "wiki-meanings-057.json",
+      "form_pairs": 5009,
+      "readings": 4696
+    },
+    {
+      "file": "wiki-meanings-058.json",
+      "form_pairs": 5081,
+      "readings": 4780
+    },
+    {
+      "file": "wiki-meanings-059.json",
+      "form_pairs": 4945,
+      "readings": 4638
+    },
+    {
+      "file": "wiki-meanings-060.json",
+      "form_pairs": 5137,
+      "readings": 4770
+    },
+    {
+      "file": "wiki-meanings-061.json",
+      "form_pairs": 5077,
+      "readings": 4796
+    },
+    {
+      "file": "wiki-meanings-062.json",
+      "form_pairs": 4955,
+      "readings": 4624
+    },
+    {
+      "file": "wiki-meanings-063.json",
+      "form_pairs": 5082,
+      "readings": 4768
+    },
+    {
+      "file": "wiki-meanings-064.json",
+      "form_pairs": 5148,
+      "readings": 4796
+    },
+    {
+      "file": "wiki-meanings-065.json",
+      "form_pairs": 4906,
+      "readings": 4610
+    },
+    {
+      "file": "wiki-meanings-066.json",
+      "form_pairs": 4991,
+      "readings": 4684
+    },
+    {
+      "file": "wiki-meanings-067.json",
+      "form_pairs": 5187,
+      "readings": 4919
+    },
+    {
+      "file": "wiki-meanings-068.json",
+      "form_pairs": 5076,
+      "readings": 4711
+    },
+    {
+      "file": "wiki-meanings-069.json",
+      "form_pairs": 5020,
+      "readings": 4708
+    },
+    {
+      "file": "wiki-meanings-070.json",
+      "form_pairs": 5139,
+      "readings": 4781
+    },
+    {
+      "file": "wiki-meanings-071.json",
+      "form_pairs": 5043,
+      "readings": 4711
+    },
+    {
+      "file": "wiki-meanings-072.json",
+      "form_pairs": 5094,
+      "readings": 4727
+    },
+    {
+      "file": "wiki-meanings-073.json",
+      "form_pairs": 5096,
+      "readings": 4724
+    },
+    {
+      "file": "wiki-meanings-074.json",
+      "form_pairs": 5014,
+      "readings": 4709
+    },
+    {
+      "file": "wiki-meanings-075.json",
+      "form_pairs": 5041,
+      "readings": 4715
+    },
+    {
+      "file": "wiki-meanings-076.json",
+      "form_pairs": 4902,
+      "readings": 4633
+    },
+    {
+      "file": "wiki-meanings-077.json",
+      "form_pairs": 5171,
+      "readings": 4833
+    },
+    {
+      "file": "wiki-meanings-078.json",
+      "form_pairs": 5006,
+      "readings": 4724
+    },
+    {
+      "file": "wiki-meanings-079.json",
+      "form_pairs": 5220,
+      "readings": 4830
+    },
+    {
+      "file": "wiki-meanings-080.json",
+      "form_pairs": 5000,
+      "readings": 4714
+    },
+    {
+      "file": "wiki-meanings-081.json",
+      "form_pairs": 5071,
+      "readings": 4678
+    },
+    {
+      "file": "wiki-meanings-082.json",
+      "form_pairs": 5155,
+      "readings": 4830
+    },
+    {
+      "file": "wiki-meanings-083.json",
+      "form_pairs": 5092,
+      "readings": 4750
+    },
+    {
+      "file": "wiki-meanings-084.json",
+      "form_pairs": 5245,
+      "readings": 4898
+    },
+    {
+      "file": "wiki-meanings-085.json",
+      "form_pairs": 4981,
+      "readings": 4668
+    },
+    {
+      "file": "wiki-meanings-086.json",
+      "form_pairs": 5184,
+      "readings": 4817
+    },
+    {
+      "file": "wiki-meanings-087.json",
+      "form_pairs": 5078,
+      "readings": 4757
+    },
+    {
+      "file": "wiki-meanings-088.json",
+      "form_pairs": 5196,
+      "readings": 4839
+    },
+    {
+      "file": "wiki-meanings-089.json",
+      "form_pairs": 5143,
+      "readings": 4771
+    },
+    {
+      "file": "wiki-meanings-090.json",
+      "form_pairs": 4961,
+      "readings": 4656
+    },
+    {
+      "file": "wiki-meanings-091.json",
+      "form_pairs": 5007,
+      "readings": 4708
+    },
+    {
+      "file": "wiki-meanings-092.json",
+      "form_pairs": 5128,
+      "readings": 4731
+    },
+    {
+      "file": "wiki-meanings-093.json",
+      "form_pairs": 5089,
+      "readings": 4777
+    },
+    {
+      "file": "wiki-meanings-094.json",
+      "form_pairs": 5183,
+      "readings": 4802
+    },
+    {
+      "file": "wiki-meanings-095.json",
+      "form_pairs": 4917,
+      "readings": 4651
+    },
+    {
+      "file": "wiki-meanings-096.json",
+      "form_pairs": 5063,
+      "readings": 4751
+    },
+    {
+      "file": "wiki-meanings-097.json",
+      "form_pairs": 5065,
+      "readings": 4773
+    },
+    {
+      "file": "wiki-meanings-098.json",
+      "form_pairs": 5144,
+      "readings": 4830
+    },
+    {
+      "file": "wiki-meanings-099.json",
+      "form_pairs": 5118,
+      "readings": 4799
+    },
+    {
+      "file": "wiki-meanings-100.json",
+      "form_pairs": 5008,
+      "readings": 4696
+    },
+    {
+      "file": "wiki-meanings-101.json",
+      "form_pairs": 5080,
+      "readings": 4763
+    },
+    {
+      "file": "wiki-meanings-102.json",
+      "form_pairs": 5154,
+      "readings": 4783
+    },
+    {
+      "file": "wiki-meanings-103.json",
+      "form_pairs": 5147,
+      "readings": 4846
+    },
+    {
+      "file": "wiki-meanings-104.json",
+      "form_pairs": 5111,
+      "readings": 4788
+    },
+    {
+      "file": "wiki-meanings-105.json",
+      "form_pairs": 5062,
+      "readings": 4732
+    },
+    {
+      "file": "wiki-meanings-106.json",
+      "form_pairs": 5020,
+      "readings": 4732
+    },
+    {
+      "file": "wiki-meanings-107.json",
+      "form_pairs": 5088,
+      "readings": 4759
+    },
+    {
+      "file": "wiki-meanings-108.json",
+      "form_pairs": 5081,
+      "readings": 4739
+    },
+    {
+      "file": "wiki-meanings-109.json",
+      "form_pairs": 4963,
+      "readings": 4631
+    },
+    {
+      "file": "wiki-meanings-110.json",
+      "form_pairs": 5131,
+      "readings": 4796
+    },
+    {
+      "file": "wiki-meanings-111.json",
+      "form_pairs": 5192,
+      "readings": 4852
+    },
+    {
+      "file": "wiki-meanings-112.json",
+      "form_pairs": 5084,
+      "readings": 4767
+    },
+    {
+      "file": "wiki-meanings-113.json",
+      "form_pairs": 5030,
+      "readings": 4720
+    },
+    {
+      "file": "wiki-meanings-114.json",
+      "form_pairs": 5138,
+      "readings": 4802
+    },
+    {
+      "file": "wiki-meanings-115.json",
+      "form_pairs": 5060,
+      "readings": 4786
+    },
+    {
+      "file": "wiki-meanings-116.json",
+      "form_pairs": 4990,
+      "readings": 4665
+    },
+    {
+      "file": "wiki-meanings-117.json",
+      "form_pairs": 4928,
+      "readings": 4602
+    },
+    {
+      "file": "wiki-meanings-118.json",
+      "form_pairs": 5215,
+      "readings": 4823
+    },
+    {
+      "file": "wiki-meanings-119.json",
+      "form_pairs": 4977,
+      "readings": 4683
+    },
+    {
+      "file": "wiki-meanings-120.json",
+      "form_pairs": 5145,
+      "readings": 4828
+    },
+    {
+      "file": "wiki-meanings-121.json",
+      "form_pairs": 4979,
+      "readings": 4665
+    },
+    {
+      "file": "wiki-meanings-122.json",
+      "form_pairs": 5003,
+      "readings": 4654
+    },
+    {
+      "file": "wiki-meanings-123.json",
+      "form_pairs": 5105,
+      "readings": 4778
+    },
+    {
+      "file": "wiki-meanings-124.json",
+      "form_pairs": 5083,
+      "readings": 4765
+    },
+    {
+      "file": "wiki-meanings-125.json",
+      "form_pairs": 5187,
+      "readings": 4874
+    },
+    {
+      "file": "wiki-meanings-126.json",
+      "form_pairs": 5061,
+      "readings": 4698
+    },
+    {
+      "file": "wiki-meanings-127.json",
+      "form_pairs": 5225,
+      "readings": 4856
+    }
+  ]
 }
