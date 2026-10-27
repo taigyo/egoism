@@ -30,9 +30,17 @@ const meanings = JSON.parse(read('public/data/meanings.json'));
 const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
-if (!html.includes('第 14 版')) fail('Version label is missing.');
+if (!html.includes('第 15 版')) fail('Version label is missing.');
 if (!app.includes('async function showEndOverlay') || !app.includes('await loadMeaningDictionary()')) fail('Results do not wait for meaning data before appearing.');
 if (!app.includes('history-definition-toggle') || !app.includes('Wikipedia ↗')) fail('Expandable meanings or Wikipedia attribution links are missing.');
+if (!app.includes('await loadWikipediaMeaningsForHistory(gameHistory)')) fail('Results do not wait for relevant Wikipedia meanings.');
+if (!app.includes('chars.slice(0, 24).join(\'\') + \'…\'') || !app.includes('chars.length > 25')) fail('Definition preview does not use the 25-character limit.');
+if (app.includes('この単語の意味データはありません。')) fail('Missing definitions should not display placeholder text.');
+if (!app.includes('history-word-red') || !app.includes('history-word-blue')) fail('Result words are missing team-color underline classes.');
+const wikipediaShards = Array.from({ length: 128 }, (_, i) => `public/data/wiki-meanings-${String(i).padStart(3, '0')}.json`);
+for (const file of wikipediaShards) {
+  if (!fs.existsSync(path.join(root, file))) fail(`Wikipedia meaning shard is missing: ${file}`);
+}
 if (!manifest.dictionary_sources.some(source => source.includes('JA Wikipedia'))) fail('Wikipedia dictionary source is missing from the manifest.');
 if (!app.includes('wipe.animate(') || !app.includes('el.animate(')) fail('Territory and question animations are not driven by the Web Animations API.');
 if (!html.includes('class="time-settings-row"')) fail('Time settings are not grouped into one horizontal row.');
@@ -44,4 +52,4 @@ if (!css.includes('.territory-wipe') || !css.includes('!important')) fail('Terri
 if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('A removed legacy board element is still present.');
 
 if (process.exitCode) process.exit(process.exitCode);
-console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} combined dictionary readings, definitions, Cloudflare config, and territory animations.`);
+console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} combined dictionary readings, Wikipedia meaning shards, result UI, Cloudflare config, and territory animations.`);
