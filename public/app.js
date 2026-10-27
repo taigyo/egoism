@@ -47,7 +47,7 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
 
 async function loadDictionary() {
   try {
-    const shardFiles = ['/data/words-1.json', '/data/words-2.json', '/data/words-3.json', '/data/words-4.json'];
+    const shardFiles = ['/data/words-1.json', '/data/words-2.json', '/data/words-3.json', '/data/words-4.json', '/data/words-5.json', '/data/words-6.json', '/data/words-7.json', '/data/words-8.json'];
     const dictionaries = await Promise.all(shardFiles.map(async file => {
       const response = await fetch(file);
       if (!response.ok) throw Error(`${file}: HTTP ${response.status}`);
