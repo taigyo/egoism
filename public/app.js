@@ -17,6 +17,8 @@ let clockTimer = null;
 let currentPattern = '';
 let currentAnswer = '';
 let gameHistory = [];
+let usedQuestionWords = new Set();
+let usedAnswerWords = new Set();
 let gameEnded = false;
 let inOvertime = false;
 let questionRecorded = false;
@@ -124,7 +126,7 @@ function readConfig() {
   };
 }
 function formatTime(seconds) {
-  if (seconds === 0 || seconds === null) return '∞';
+  if (seconds === null) return '∞';
   seconds = Math.max(0, Math.ceil(seconds));
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
@@ -154,9 +156,18 @@ function animateQuestionText() {
 }
 function buildQuestion() {
   if (!dictionary) { $('answer-message').textContent = '辞書を読み込み中です。少し待ってから再試行してください。'; return; }
-  const keys = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && w.length >= config.lengthMin && w.length <= config.lengthMax);
-  if (!keys.length) { $('answer-message').textContent = 'この条件に合う単語がありません。文字数を変えてください。'; return; }
+  const eligible = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && w.length >= config.lengthMin && w.length <= config.lengthMax);
+  if (!eligible.length) { $('answer-message').textContent = 'この条件に合う単語がありません。文字数を変えてください。'; return; }
+  const keys = eligible.filter(w => !usedQuestionWords.has(w) && !usedAnswerWords.has(w));
+  if (!keys.length) {
+    currentAnswer = ''; currentPattern = '';
+    $('pattern-desktop').textContent = ''; $('pattern-mobile').textContent = '';
+    if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = '';
+    endGame('語彙切れ', 'この試合で使える言葉がなくなりました。');
+    return;
+  }
   currentAnswer = keys[Math.floor(Math.random() * keys.length)];
+  usedQuestionWords.add(currentAnswer);
   const revealedLow = Math.min(config.revealedMin ?? 1, config.revealedMax ?? 3);
   const revealedHigh = Math.max(config.revealedMin ?? 1, config.revealedMax ?? 3);
   const n = Math.min(currentAnswer.length, revealedLow + Math.floor(Math.random() * (revealedHigh - revealedLow + 1))); 
@@ -177,7 +188,7 @@ function buildQuestion() {
 }
 function recordUnanswered(reason) {
   if (questionRecorded || !currentAnswer || !dictionary) return;
-  const candidates = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && matchesPattern(w, currentPattern));
+  const candidates = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && matchesPattern(w, currentPattern) && !usedAnswerWords.has(w));
   gameHistory.push({ unanswered: true, pattern: currentPattern, reason, candidates: candidates.sort(() => Math.random() - .5).slice(0, 5), who: 'none', word: '未回答の問題' });
   questionRecorded = true;
 }
@@ -208,7 +219,7 @@ function updateBoard(previous = position, animate = true) {
     }
   });
 }
-function updateClockLocal() { $('match-clock').textContent = inOvertime ? '延長' : formatTime(matchRemaining); }
+function updateClockLocal() { $('match-clock').textContent = inOvertime ? '延長' : config.matchTime === 0 ? '∞' : formatTime(matchRemaining); }
 function stopTimers() {
   [matchTimer, questionTimer, clockTimer].forEach(t => { if (t) clearInterval(t); });
   matchTimer = questionTimer = clockTimer = null;
@@ -243,13 +254,14 @@ function renderGameHistory() {
   if (!gameHistory.length) { const empty = document.createElement('li'); empty.className = 'history-empty'; empty.textContent = 'この試合で記録された言葉・問題はありません。'; list.append(empty); return; }
   gameHistory.forEach((entry, index) => {
     const li = document.createElement('li'); li.className = 'history-entry ' + (entry.who === 'red' ? 'history-red' : entry.who === 'blue' ? 'history-blue' : 'history-unanswered');
+    li.style.setProperty('--underline-delay', `${index * 0.12}s`);
     const number = document.createElement('span'); number.className = 'history-number'; number.textContent = String(index + 1).padStart(2, '0');
     const content = document.createElement('span'); content.className = 'history-content';
     const word = document.createElement('strong'); word.textContent = entry.unanswered ? `問題：${entry.pattern}` : entry.word;
     if (!entry.unanswered) word.classList.add(entry.who === 'red' ? 'history-word-red' : 'history-word-blue');
     const forms = document.createElement('small');
     if (entry.unanswered) {
-      forms.textContent = `未回答（${entry.reason}）候補：${(entry.candidates || []).join(' ・ ') || '候補なし'}`;
+      forms.textContent = `候補：${(entry.candidates || []).join(' ・ ') || '候補なし'}`;
     } else {
       const candidates = [...new Set(entry.forms || [])];
       forms.textContent = candidates.length > 3 ? `${candidates.slice(0, 3).join(' ・ ')} ほか${candidates.length - 3}件` : candidates.join(' ・ ') || '表記候補なし';
@@ -275,7 +287,7 @@ function renderGameHistory() {
         definition.className = 'history-definition';
         const chars = Array.from(fullText);
         const hasToggle = chars.length > 25;
-        const collapsedText = hasToggle ? chars.slice(0, 24).join('') + '…' : fullText;
+        const collapsedText = hasToggle ? chars.slice(0, 25).join('') + '…' : fullText;
         definition.textContent = collapsedText;
         content.append(definition);
         if (hasToggle) {
@@ -288,6 +300,7 @@ function renderGameHistory() {
           toggle.addEventListener('click', () => {
             const expanded = toggle.getAttribute('aria-expanded') !== 'true';
             definition.textContent = expanded ? fullText : collapsedText;
+            definition.classList.toggle('is-expanded', expanded);
             toggle.textContent = expanded ? '▲' : '▼';
             toggle.setAttribute('aria-expanded', String(expanded));
             toggle.setAttribute('aria-label', `${entry.word}の意味を${expanded ? '折りたたむ' : '全文表示'}`);
@@ -329,6 +342,10 @@ function endGame(title, detail) {
   if (online) return;
   if (!questionRecorded && currentAnswer) recordUnanswered('試合終了');
   gameEnded = true; stopTimers();
+  currentPattern = '';
+  $('pattern-desktop').textContent = ''; $('pattern-mobile').textContent = '';
+  if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = '';
+  $('answer').disabled = true; $('pass-button').disabled = true;
   $('end-title').textContent = title; $('end-detail').textContent = detail;
   showEndOverlay();
 }
@@ -343,7 +360,8 @@ function acceptAnswer(word, who = 'red') {
   if (!/^[ぁ-ゖー]+$/.test(word)) { $('answer-message').textContent = 'ひらがなで入力してください。'; return; }
   if (!matchesPattern(word, currentPattern)) { $('answer-message').textContent = '文字数、または公開された文字が合っていません。'; return; }
   if (!dictionary[word]) { $('answer-message').textContent = '辞書にない読みです。別の言葉を試してください。'; return; }
-  questionRecorded = true; gameHistory.push({ word, who, forms: [...new Set(dictionary[word] || [])] }); showSuccess(word);
+  if (usedAnswerWords.has(word) || (usedQuestionWords.has(word) && word !== currentAnswer)) { $('answer-message').textContent = 'この試合ですでに使われた言葉です。別の言葉を試してください。'; return; }
+  questionRecorded = true; usedAnswerWords.add(word); gameHistory.push({ word, who, forms: [...new Set(dictionary[word] || [])] }); showSuccess(word);
   if (inOvertime) { endGame(who === 'red' ? 'エ語彙スト！' : '相手がエ語彙スト！', '延長戦で先に正解しました。'); return; }
   const previous = position; position = clamp(position + (who === 'red' ? 1 : -1), 0, 6); updateBoard(previous);
   $('answer-message').textContent = `正解：${word}。${who === 'red' ? '青のマスを赤に' : '赤のマスを青に'}塗り替えました。`;
@@ -356,6 +374,9 @@ function nextQuestion(message, reason = 'パス') {
 }
 function startDemo() {
   disconnectOnline(); stopTimers(); config = readConfig(); position = 3; gameEnded = false; inOvertime = false;
+  usedQuestionWords = new Set(); usedAnswerWords = new Set();
+  $('answer').disabled = false; $('pass-button').disabled = false;
+  currentAnswer = ''; currentPattern = ''; questionRecorded = false;
   matchRemaining = config.matchTime; questionRemaining = config.questionTime; gameHistory = [];
   $('end-overlay').classList.add('hidden'); $('match-room-label').textContent = 'LOCAL PREVIEW'; $('success-banner').classList.remove('show');
   updateBoard(3, false); goTo('battle'); buildQuestion(); startMatchTimer();
@@ -532,7 +553,9 @@ function applyServerState(state) {
   setRoomMessage('対戦中です。部屋IDを共有している相手と接続中です。');
   if (!$('battle').classList.contains('active')) goTo('battle');
   $('end-overlay').classList.add('hidden');
-  $('pattern-desktop').textContent = currentPattern; $('pattern-mobile').textContent = currentPattern; if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = currentPattern;
+  const visiblePattern = state.ended ? '' : currentPattern;
+  $('pattern-desktop').textContent = visiblePattern; $('pattern-mobile').textContent = visiblePattern; if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = visiblePattern;
+  $('answer').disabled = !!state.ended; $('pass-button').disabled = !!state.ended;
   if (state.questionId !== lastQuestionId) { lastQuestionId = state.questionId; animateQuestionText(); $('answer').value = ''; }
   updateBoard(oldVisualPosition, oldVisualPosition !== position);
   if (state.lastSuccess) {
@@ -570,9 +593,61 @@ function updateOnlineClock() {
   const now = Date.now();
   const match = matchDeadline ? Math.min(config.matchTime || Infinity, Math.max(0, Math.ceil((matchDeadline - now) / 1000))) : 0;
   const question = questionDeadline ? Math.min(config.questionTime || Infinity, Math.max(0, Math.ceil((questionDeadline - now) / 1000))) : 0;
-  $('match-clock').textContent = lastServerState.inOvertime ? '延長' : matchDeadline ? formatTime(match) : '∞';
+  $('match-clock').textContent = lastServerState.inOvertime ? '延長' : config.matchTime === 0 ? '∞' : formatTime(match);
   questionRemaining = questionDeadline ? question : 0;
 }
+
+function katakanaToHiragana(value) {
+  return [...value].map(ch => {
+    const code = ch.charCodeAt(0);
+    return code >= 0x30A1 && code <= 0x30F6 ? String.fromCharCode(code - 0x60) : ch;
+  }).join('');
+}
+function findMeaning(reading, forms) {
+  for (const form of forms) {
+    const defs = meaningDictionary?.[reading]?.[form];
+    if (defs?.length) return [...new Set(defs)].join(' ／ ');
+  }
+  for (const form of forms) {
+    const defs = wikipediaMeaningDictionary?.[reading]?.[form];
+    if (defs?.length) return [...new Set(defs)].join(' ／ ');
+  }
+  return '';
+}
+async function lookupHomeWord() {
+  const input = $('dictionary-search-input');
+  const output = $('dictionary-search-results');
+  const query = input.value.trim();
+  output.replaceChildren();
+  if (!query) { output.textContent = '言葉を入力してください。'; return; }
+  if (!dictionary) { output.textContent = '辞書を読み込み中です。少し待ってからお試しください。'; return; }
+  const kanaQuery = katakanaToHiragana(query);
+  let matches = [];
+  if (/^[ぁ-ゖー]+$/.test(kanaQuery) && dictionary[kanaQuery]) {
+    matches = [{ reading: kanaQuery, forms: [...new Set(dictionary[kanaQuery])] }];
+  } else {
+    for (const reading in dictionary) {
+      const forms = dictionary[reading];
+      if (Array.isArray(forms) && forms.includes(query)) matches.push({ reading, forms: [query] });
+      if (matches.length >= 30) break;
+    }
+  }
+  if (!matches.length) { output.textContent = '辞書に見つかりませんでした。'; return; }
+  await loadMeaningDictionary();
+  const wikiEntries = matches.filter(item => !findMeaning(item.reading, item.forms)).map(item => ({ word: item.reading, forms: item.forms }));
+  if (wikiEntries.length) await loadWikipediaMeaningsForHistory(wikiEntries);
+  for (const item of matches.slice(0, 10)) {
+    const row = document.createElement('article'); row.className = 'dictionary-result-row';
+    const heading = document.createElement('strong'); heading.textContent = item.forms.join(' ・ ');
+    const reading = document.createElement('small'); reading.textContent = `読み：${item.reading}`;
+    row.append(heading, reading);
+    const meaning = findMeaning(item.reading, item.forms);
+    if (meaning) { const description = document.createElement('p'); description.textContent = meaning; row.append(description); }
+    output.append(row);
+  }
+  if (matches.length > 10) { const more = document.createElement('p'); more.className = 'dictionary-search-note'; more.textContent = `ほか ${matches.length - 10} 件の候補があります。`; output.append(more); }
+}
+$('dictionary-search-form').addEventListener('submit', event => { event.preventDefault(); lookupHomeWord(); });
 
 $('create-room').addEventListener('click', createOnlineRoom);
 $('copy-room').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('room-code').textContent); setRoomMessage('部屋IDをコピーしました。'); } catch { setRoomMessage('部屋ID：' + $('room-code').textContent); } });
