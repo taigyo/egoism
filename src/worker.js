@@ -7,7 +7,7 @@ export default {
       return json({
         ok: true, service: 'egoism-room-server',
         bindings: { rooms: Boolean(env.ROOMS), assets: Boolean(env.ASSETS) },
-        version: 'room-api-v5'
+        version: 'room-api-v6'
       });
     }
 
@@ -70,6 +70,7 @@ export class GameRoom {
     this.env = env;
     this.room = null;
     this.dictionary = null;
+    this.properNounReadings = new Set();
   }
 
   async loadRoom() {
@@ -82,9 +83,19 @@ export class GameRoom {
   }
   async loadDictionary() {
     if (this.dictionary) return this.dictionary;
-    const response = await this.env.ASSETS.fetch('https://egoism-assets/data/words.json');
-    if (!response.ok) throw new Error('辞書データを読み込めません。');
-    this.dictionary = await response.json();
+    const shards = await Promise.all(Array.from({ length: 8 }, async (_, index) => {
+      const filename = `/data/words-${index + 1}.json`;
+      const response = await this.env.ASSETS.fetch(`https://egoism-assets${filename}`);
+      if (!response.ok) throw new Error(`辞書データを読み込めません（${filename}）。`);
+      return response.json();
+    }));
+    this.dictionary = Object.assign({}, ...shards);
+    try {
+      const properResponse = await this.env.ASSETS.fetch('https://egoism-assets/data/proper-noun-readings.json');
+      if (properResponse.ok) this.properNounReadings = new Set(await properResponse.json());
+    } catch (error) {
+      console.warn('固有名詞候補リストを読み込めませんでした', error);
+    }
     return this.dictionary;
   }
 
@@ -159,8 +170,8 @@ export class GameRoom {
 
   makeQuestion(dict) {
     const room = this.room;
-    const keys = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && word.length >= room.config.lengthMin && word.length <= room.config.lengthMax);
-    if (!keys.length) throw new Error('設定に合う読みがありません。');
+    const keys = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && word.length >= room.config.lengthMin && word.length <= room.config.lengthMax && matchesDifficulty(word, dict[word], room.config.difficulty, this.properNounReadings));
+    if (!keys.length) return false;
     const available = keys.filter(word => !room.usedWords.includes(word) && !(room.usedAnswers || []).includes(word));
     if (!available.length) return false;
     const answer = available[Math.floor(Math.random() * available.length)];
@@ -347,8 +358,24 @@ function normalizeConfig(input = {}) {
     revealedMax: Math.max(revealA, revealB),
     matchTime: Math.max(0, numberOr(input.matchTime, 300)),
     questionTime: Math.max(0, numberOr(input.questionTime, 120)),
-    overtime: input.overtime === 'draw' ? 'draw' : 'sudden'
+    overtime: input.overtime === 'draw' ? 'draw' : 'sudden',
+    difficulty: ['beginner', 'intermediate', 'advanced', 'unlimited'].includes(input.difficulty) ? input.difficulty : 'intermediate'
   };
+}
+function classifyWordDifficulty(reading, forms = [], properNounReadings = new Set()) {
+  if (properNounReadings.has(String(reading || ''))) return 'advanced';
+  const chars = [...String(reading || '')];
+  const safeForms = [...new Set(Array.isArray(forms) ? forms.filter(form => typeof form === 'string') : [])];
+  const isComplexForm = form => /[\u3400-\u4DBF\u{20000}-\u{2FA1F}]/u.test(form) || [...form].length >= 8 || (form.match(/[一-龯]/g) || []).length >= 5;
+  const isIntermediateForm = form => /[ァ-ヺ]/.test(form) || (form.match(/[一-龯]/g) || []).length >= 3;
+  const allFormsComplex = safeForms.length > 0 && safeForms.every(isComplexForm);
+  const allFormsIntermediate = safeForms.length > 0 && safeForms.every(isIntermediateForm);
+  if (chars.length >= 7 || allFormsComplex) return 'advanced';
+  if (chars.length >= 5 || allFormsIntermediate) return 'intermediate';
+  return 'beginner';
+}
+function matchesDifficulty(reading, forms, difficulty, properNounReadings = new Set()) {
+  return difficulty === 'unlimited' || classifyWordDifficulty(reading, forms, properNounReadings) === difficulty;
 }
 function matchesPattern(word, pattern) {
   const chars = [...word], mask = [...pattern];
