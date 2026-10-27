@@ -159,18 +159,12 @@
 .dictionary-attribution{font-size:12px;color:var(--muted);margin:0 0 10px}
 .dictionary-attribution a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 
-/* v14: definitions load before results fade in; long definitions can expand */
+/* v15: results use 25-character definition previews and animated team-color underlines */
 @keyframes resultFadeIn { from { opacity: 0; } to { opacity: 1; } }
 .end-overlay.result-fade-in { animation: resultFadeIn .28s ease both; }
-.history-entry { grid-template-columns: 28px minmax(0,1fr) auto auto; }
+.history-entry { grid-template-columns: 28px minmax(0,1fr) auto; }
 .history-links { display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
-.history-definition.is-collapsed {
-  display:-webkit-box;
-  -webkit-box-orient:vertical;
-  -webkit-line-clamp:3;
-  overflow:hidden;
-}
-.history-definition.is-expanded { display:block; overflow-wrap:anywhere; }
+.history-definition { display:block; overflow-wrap:anywhere; }
 .history-definition-toggle {
   align-self:flex-start;
   border:0;
@@ -181,12 +175,39 @@
   cursor:pointer;
 }
 .history-definition-toggle:hover { color:var(--ink); }
+.history-content strong.history-word-red,
+.history-content strong.history-word-blue {
+  display:inline-block;
+  position:relative;
+  width:fit-content;
+  padding-bottom:3px;
+}
+.history-content strong.history-word-red::after,
+.history-content strong.history-word-blue::after {
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height:2px;
+  border-radius:2px;
+  transform:scaleX(0);
+  transform-origin:left center;
+  animation: historyUnderlineDraw .55s cubic-bezier(.2,.8,.2,1) .12s forwards;
+}
+.history-content strong.history-word-red::after { background:var(--red); }
+.history-content strong.history-word-blue::after { background:var(--blue); }
+@keyframes historyUnderlineDraw { to { transform:scaleX(1); } }
 .version { padding-left:12px; border-left:1px solid var(--line); white-space:nowrap; }
 @media(max-width:640px) {
   .masthead { align-items:flex-start; gap:12px; }
   .masthead-right { gap:9px; flex-wrap:wrap; justify-content:flex-end; }
   .version { padding-left:8px; }
-  .history-entry { grid-template-columns:22px minmax(0,1fr) auto auto; gap:6px; }
+  .history-entry { grid-template-columns:22px minmax(0,1fr) auto; gap:6px; }
   .history-links { max-width:76px; }
   .history-meaning-link { white-space:normal; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .history-content strong.history-word-red::after,
+  .history-content strong.history-word-blue::after { animation-duration:0.01ms; animation-delay:0ms; }
 }

@@ -4,6 +4,9 @@ const $ = id => document.getElementById(id);
 let dictionary = null;
 let meaningDictionary = null;
 let meaningDictionaryPromise = null;
+let wikipediaMeaningDictionary = {};
+const loadedWikipediaMeaningShards = new Set();
+const wikipediaMeaningShardPromises = new Map();
 let config = {};
 let position = 3;
 let matchRemaining = 300;
@@ -75,6 +78,38 @@ function loadMeaningDictionary() {
       });
   }
   return meaningDictionaryPromise;
+}
+
+function wikipediaMeaningBucket(reading) {
+  let hash = 0;
+  for (let i = 0; i < reading.length; i++) hash = (hash * 31 + reading.charCodeAt(i)) >>> 0;
+  return hash % 128;
+}
+async function loadWikipediaMeaningsForHistory(entries) {
+  await loadMeaningDictionary();
+  const readings = new Set();
+  for (const entry of entries) {
+    if (!entry || entry.unanswered || !entry.word) continue;
+    const forms = [...new Set(entry.forms || [])];
+    const existing = forms.some(form => meaningDictionary?.[entry.word]?.[form]?.length);
+    if (!existing) readings.add(entry.word);
+  }
+  const buckets = new Set([...readings].map(reading => wikipediaMeaningBucket(reading)));
+  await Promise.all([...buckets].map(bucket => {
+    if (loadedWikipediaMeaningShards.has(bucket)) return Promise.resolve();
+    if (!wikipediaMeaningShardPromises.has(bucket)) {
+      const filename = `/data/wiki-meanings-${String(bucket).padStart(3, '0')}.json`;
+      const promise = fetch(filename)
+        .then(response => { if (!response.ok) throw Error(`${filename}: HTTP ${response.status}`); return response.json(); })
+        .then(data => {
+          Object.assign(wikipediaMeaningDictionary, data);
+          loadedWikipediaMeaningShards.add(bucket);
+        })
+        .catch(error => { console.error('Wikipedia意味データの読み込みに失敗しました', error); });
+      wikipediaMeaningShardPromises.set(bucket, promise);
+    }
+    return wikipediaMeaningShardPromises.get(bucket);
+  }));
 }
 
 function readConfig() {
@@ -206,14 +241,12 @@ function onMatchTimeUp() {
 function renderGameHistory() {
   const list = $('game-history'); list.replaceChildren();
   if (!gameHistory.length) { const empty = document.createElement('li'); empty.className = 'history-empty'; empty.textContent = 'この試合で記録された言葉・問題はありません。'; list.append(empty); return; }
-  if (gameHistory.some(entry => !entry.unanswered) && !meaningDictionary) {
-    loadMeaningDictionary().then(() => renderGameHistory());
-  }
   gameHistory.forEach((entry, index) => {
     const li = document.createElement('li'); li.className = 'history-entry ' + (entry.who === 'red' ? 'history-red' : entry.who === 'blue' ? 'history-blue' : 'history-unanswered');
     const number = document.createElement('span'); number.className = 'history-number'; number.textContent = String(index + 1).padStart(2, '0');
     const content = document.createElement('span'); content.className = 'history-content';
     const word = document.createElement('strong'); word.textContent = entry.unanswered ? `問題：${entry.pattern}` : entry.word;
+    if (!entry.unanswered) word.classList.add(entry.who === 'red' ? 'history-word-red' : 'history-word-blue');
     const forms = document.createElement('small');
     if (entry.unanswered) {
       forms.textContent = `未回答（${entry.reason}）候補：${(entry.candidates || []).join(' ・ ') || '候補なし'}`;
@@ -223,8 +256,6 @@ function renderGameHistory() {
     }
     content.append(word, forms);
     if (!entry.unanswered) {
-      const definition = document.createElement('small');
-      definition.className = 'history-definition';
       let found = [];
       if (meaningDictionary && meaningDictionary[entry.word]) {
         for (const form of [...new Set(entry.forms || [])]) {
@@ -232,38 +263,45 @@ function renderGameHistory() {
           if (defs && defs.length) { found = defs; break; }
         }
       }
-      if (found.length) {
-        definition.textContent = found.join(' ／ ');
-      } else if (!meaningDictionary) {
-        definition.textContent = '意味を読み込み中…';
-      } else {
-        definition.textContent = 'この単語の意味データはありません。';
+      if (!found.length && wikipediaMeaningDictionary[entry.word]) {
+        for (const form of [...new Set(entry.forms || [])]) {
+          const defs = wikipediaMeaningDictionary[entry.word][form];
+          if (defs && defs.length) { found = defs; break; }
+        }
       }
-      content.append(definition);
-      if (found.join(' ／ ').length > 120) {
-        definition.classList.add('is-collapsed');
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.className = 'history-definition-toggle';
-        toggle.textContent = '▼';
-        toggle.setAttribute('aria-expanded', 'false');
-        toggle.setAttribute('aria-label', `${entry.word}の意味を全文表示`);
-        toggle.addEventListener('click', () => {
-          const expanded = definition.classList.toggle('is-expanded');
-          definition.classList.toggle('is-collapsed', !expanded);
-          toggle.textContent = expanded ? '▲' : '▼';
-          toggle.setAttribute('aria-expanded', String(expanded));
-          toggle.setAttribute('aria-label', `${entry.word}の意味を${expanded ? '折りたたむ' : '全文表示'}`);
-        });
-        content.append(toggle);
+      if (found.length) {
+        const fullText = [...new Set(found)].join(' ／ ');
+        const definition = document.createElement('small');
+        definition.className = 'history-definition';
+        const chars = Array.from(fullText);
+        const hasToggle = chars.length > 25;
+        const collapsedText = hasToggle ? chars.slice(0, 24).join('') + '…' : fullText;
+        definition.textContent = collapsedText;
+        content.append(definition);
+        if (hasToggle) {
+          const toggle = document.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'history-definition-toggle';
+          toggle.textContent = '▼';
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.setAttribute('aria-label', `${entry.word}の意味を全文表示`);
+          toggle.addEventListener('click', () => {
+            const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+            definition.textContent = expanded ? fullText : collapsedText;
+            toggle.textContent = expanded ? '▲' : '▼';
+            toggle.setAttribute('aria-expanded', String(expanded));
+            toggle.setAttribute('aria-label', `${entry.word}の意味を${expanded ? '折りたたむ' : '全文表示'}`);
+          });
+          content.append(toggle);
+        }
       }
     }
     const links = document.createElement('span');
     links.className = 'history-links';
-    const meaning = document.createElement('a');
-    meaning.className = 'history-meaning-link'; meaning.textContent = entry.unanswered ? '' : '辞書 ↗';
     if (!entry.unanswered) {
       const sourceWord = (entry.forms || [])[0] || entry.word;
+      const meaning = document.createElement('a');
+      meaning.className = 'history-meaning-link'; meaning.textContent = '辞書 ↗';
       meaning.href = 'https://ja.wiktionary.org/wiki/' + encodeURIComponent(sourceWord);
       meaning.target = '_blank'; meaning.rel = 'noopener noreferrer'; meaning.setAttribute('aria-label', `${entry.word}の辞書ページを開く`);
       const wikipedia = document.createElement('a');
@@ -273,14 +311,14 @@ function renderGameHistory() {
       wikipedia.target = '_blank'; wikipedia.rel = 'noopener noreferrer';
       wikipedia.setAttribute('aria-label', `${sourceWord}のWikipediaページを開く`);
       links.append(meaning, wikipedia);
-    } else { meaning.setAttribute('aria-hidden', 'true'); links.append(meaning); }
-    const player = document.createElement('span'); player.className = 'history-player'; player.textContent = entry.unanswered ? '未回答' : entry.who === 'red' ? '赤' : '青';
-    li.append(number, content, links, player); list.append(li);
+    }
+    li.append(number, content, links); list.append(li);
   });
 }
 async function showEndOverlay() {
-  // Wait until every available definition is loaded before revealing the results.
+  // Load all meaning sources needed by this match before revealing the results.
   await loadMeaningDictionary();
+  await loadWikipediaMeaningsForHistory(gameHistory);
   renderGameHistory();
   const overlay = $('end-overlay');
   overlay.classList.remove('hidden', 'result-fade-in');
