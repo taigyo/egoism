@@ -240,23 +240,59 @@ function renderGameHistory() {
         definition.textContent = 'この単語の意味データはありません。';
       }
       content.append(definition);
+      if (found.join(' ／ ').length > 120) {
+        definition.classList.add('is-collapsed');
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'history-definition-toggle';
+        toggle.textContent = '▼';
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', `${entry.word}の意味を全文表示`);
+        toggle.addEventListener('click', () => {
+          const expanded = definition.classList.toggle('is-expanded');
+          definition.classList.toggle('is-collapsed', !expanded);
+          toggle.textContent = expanded ? '▲' : '▼';
+          toggle.setAttribute('aria-expanded', String(expanded));
+          toggle.setAttribute('aria-label', `${entry.word}の意味を${expanded ? '折りたたむ' : '全文表示'}`);
+        });
+        content.append(toggle);
+      }
     }
+    const links = document.createElement('span');
+    links.className = 'history-links';
     const meaning = document.createElement('a');
     meaning.className = 'history-meaning-link'; meaning.textContent = entry.unanswered ? '' : '辞書 ↗';
     if (!entry.unanswered) {
       const sourceWord = (entry.forms || [])[0] || entry.word;
       meaning.href = 'https://ja.wiktionary.org/wiki/' + encodeURIComponent(sourceWord);
       meaning.target = '_blank'; meaning.rel = 'noopener noreferrer'; meaning.setAttribute('aria-label', `${entry.word}の辞書ページを開く`);
-    } else { meaning.setAttribute('aria-hidden', 'true'); }
+      const wikipedia = document.createElement('a');
+      wikipedia.className = 'history-meaning-link wikipedia-link';
+      wikipedia.textContent = 'Wikipedia ↗';
+      wikipedia.href = 'https://ja.wikipedia.org/wiki/' + encodeURIComponent(sourceWord);
+      wikipedia.target = '_blank'; wikipedia.rel = 'noopener noreferrer';
+      wikipedia.setAttribute('aria-label', `${sourceWord}のWikipediaページを開く`);
+      links.append(meaning, wikipedia);
+    } else { meaning.setAttribute('aria-hidden', 'true'); links.append(meaning); }
     const player = document.createElement('span'); player.className = 'history-player'; player.textContent = entry.unanswered ? '未回答' : entry.who === 'red' ? '赤' : '青';
-    li.append(number, content, meaning, player); list.append(li);
+    li.append(number, content, links, player); list.append(li);
   });
+}
+async function showEndOverlay() {
+  // Wait until every available definition is loaded before revealing the results.
+  await loadMeaningDictionary();
+  renderGameHistory();
+  const overlay = $('end-overlay');
+  overlay.classList.remove('hidden', 'result-fade-in');
+  void overlay.offsetWidth;
+  overlay.classList.add('result-fade-in');
 }
 function endGame(title, detail) {
   if (online) return;
   if (!questionRecorded && currentAnswer) recordUnanswered('試合終了');
   gameEnded = true; stopTimers();
-  $('end-title').textContent = title; $('end-detail').textContent = detail; renderGameHistory(); $('end-overlay').classList.remove('hidden');
+  $('end-title').textContent = title; $('end-detail').textContent = detail;
+  showEndOverlay();
 }
 function showSuccess(word, formsOverride = null) {
   const forms = [...new Set(formsOverride || dictionary?.[word] || [])];
@@ -484,7 +520,7 @@ function applyServerState(state) {
       $('end-detail').textContent = state.result?.detail || '対戦が終了しました。';
       rematchButton.disabled = false; rematchButton.textContent = '再戦';
     }
-    renderGameHistory(); $('end-overlay').classList.remove('hidden');
+    showEndOverlay();
   } else {
     $('end-overlay').classList.add('hidden'); $('rematch').disabled = false; $('rematch').textContent = '再戦';
   }
