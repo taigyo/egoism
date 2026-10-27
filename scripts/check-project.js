@@ -27,8 +27,13 @@ if (!Array.isArray(dictionary['ほご']) || !dictionary['ほご'].includes('保�
   fail('Wiktionary dictionary sample entry ほご → 保護 is missing.');
 }
 const meanings = JSON.parse(read('public/data/meanings.json'));
+const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
+if (!html.includes('第 14 版')) fail('Version label is missing.');
+if (!app.includes('async function showEndOverlay') || !app.includes('await loadMeaningDictionary()')) fail('Results do not wait for meaning data before appearing.');
+if (!app.includes('history-definition-toggle') || !app.includes('Wikipedia ↗')) fail('Expandable meanings or Wikipedia attribution links are missing.');
+if (!manifest.dictionary_sources.some(source => source.includes('JA Wikipedia'))) fail('Wikipedia dictionary source is missing from the manifest.');
 if (!app.includes('wipe.animate(') || !app.includes('el.animate(')) fail('Territory and question animations are not driven by the Web Animations API.');
 if (!html.includes('class="time-settings-row"')) fail('Time settings are not grouped into one horizontal row.');
 if (config.name !== 'egoism' || config.main !== 'src/worker.js') fail('Cloudflare Worker config does not match this project.');
