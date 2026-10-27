@@ -694,5 +694,9 @@
       "form_pairs": 5225,
       "readings": 4856
     }
+  ],
+  "game_version": "v16",
+  "notes": [
+    "v16: result definition expansion fix, staggered animated underlines, result candidate label cleanup, dictionary attribution moved to footer, unique words per match, 00:00 timeout display, and home dictionary lookup."
   ]
 }
