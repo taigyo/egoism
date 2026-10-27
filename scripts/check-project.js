@@ -11,7 +11,7 @@ const app = read('public/app.js');
 const css = read('public/style.css');
 const worker = read('src/worker.js');
 const config = JSON.parse(read('wrangler.jsonc'));
-const dictionary = Object.assign({}, ...[1, 2, 3, 4].map(i => JSON.parse(read(`public/data/words-${i}.json`))));
+const dictionary = Object.assign({}, ...[1, 2, 3, 4, 5, 6, 7, 8].map(i => JSON.parse(read(`public/data/words-${i}.json`))));
 
 const idList = [...html.matchAll(/\bid=["']([^"']+)["']/g)].map(match => match[1]);
 const idSet = new Set(idList);
