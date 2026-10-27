@@ -1,0 +1,20 @@
+JMnedict source and licence notice
+
+Source:
+- JMnedict [2026-08-10], Yomitan-format package by yomitan-import
+- Release repository: https://github.com/yomidevs/jmdict-yomitan
+- Original dictionary owner/licensor: Electronic Dictionary Research and Development Group (EDRDG)
+- EDRDG licence statement: https://www.edrdg.org/edrdg/licence.html
+- JMdict/EDICT project information: https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project
+
+Licence:
+The EDRDG general dictionary licence statement says the covered dictionary files and derived data are made available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Acknowledgement:
+This game incorporates data derived from JMnedict, the Japanese names dictionary maintained by EDRDG.
+
+Modifications:
+Name expressions and readings were extracted from the Yomitan-format data; kana readings were normalized to hiragana; when the reading field was blank, kana values from the glossary field were used; duplicate reading/written-form pairs were removed. JMnedict definition text was not imported into the game's meaning dictionary.
+
+This notice is not a substitute for reading the full licence. Follow the current EDRDG licence conditions, including attribution, share-alike, source acknowledgement, and data-update requirements.

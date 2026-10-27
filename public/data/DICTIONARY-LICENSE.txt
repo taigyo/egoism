@@ -26,3 +26,16 @@ Additional vocabulary source: mecab-ipadic-NEologd
 - Source notice: see NEologd-COPYING.txt included with this project. The source notice identifies Apache License 2.0 and discusses upstream data sources/attributions; retain and review those terms when redistributing.
 - Changes made: selected standalone noun entries, converted katakana readings to hiragana, grouped written forms by reading, and merged them with the existing Wiktionary-derived dictionary. Duplicates were removed. No NEologd definitions were imported, so some accepted words have no meaning displayed in the result screen.
 - This combined data contains material from multiple sources with different terms; the applicable notice for each source must be retained.
+
+
+Additional vocabulary source: JMnedict (Japanese names dictionary)
+
+- Packaged source: JMnedict [2026-08-10], Yomitan-format release from yomidevs/yomitan-import.
+- Source/release metadata: https://github.com/yomidevs/jmdict-yomitan
+- Original dictionary and licensing authority: Electronic Dictionary Research and Development Group (EDRDG), https://www.edrdg.org/
+- EDRDG general dictionary licence statement: https://www.edrdg.org/edrdg/licence.html
+- JMdict/EDICT project information: https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project
+- License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0), as specified by EDRDG.
+- Attribution: This project uses data from JMnedict, the Japanese names dictionary maintained by EDRDG. The supplied Yomitan package states that it includes material from the JMdict/EDICT family in accordance with EDRDG's licence provisions.
+- Changes made for this game: extracted name expressions and readings; where the reading field was empty, used kana reading values from the glossary field; converted katakana readings to hiragana; merged with the existing reading-to-written-form dictionary; removed duplicate reading/form pairs; did not import JMnedict definitions into the meaning display.
+- The combined dictionary contains adapted data from multiple sources. Retain this notice and the source-specific notices when redistributing. The EDRDG licence requires attribution and share-alike terms for derived dictionary data, and states that applications using the data should provide source acknowledgements and links to the documentation/licence. Review the official licence for the complete conditions.
