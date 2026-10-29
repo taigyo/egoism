@@ -156,12 +156,26 @@ export class GameRoom {
     server.serializeAttachment({ role, token });
     this.ctx.acceptWebSocket(server);
     room.players[role].connected = true;
-    if (room.players.red.connected && room.players.blue.connected && !room.started && !room.ended) {
-      await this.startMatch();
-    } else {
-      await this.saveRoom();
-    }
+    const shouldStartMatch = room.players.red.connected && room.players.blue.connected && !room.started && !room.ended;
+    // Persist and acknowledge the WebSocket before loading the large dictionary shards.
+    // Doing the expensive initialization before returning HTTP 101 can make the browser
+    // report a failed WebSocket handshake even though the room itself was created.
+    await this.saveRoom();
     await this.broadcast();
+    if (shouldStartMatch) {
+      this.ctx.waitUntil((async () => {
+        try {
+          await this.startMatch();
+          await this.broadcast();
+        } catch (error) {
+          console.error('Match initialization failed after WebSocket connection', error);
+          const message = error?.message || '対戦の初期化に失敗しました。';
+          for (const ws of this.ctx.getWebSockets()) {
+            this.send(ws, { type: 'error', message: `対戦を開始できませんでした: ${message}` });
+          }
+        }
+      })());
+    }
     return new Response(null, { status: 101, webSocket: client });
   }
 

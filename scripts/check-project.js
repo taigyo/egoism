@@ -32,7 +32,7 @@ const meanings = JSON.parse(read('public/data/meanings.json'));
 const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
-if (!html.includes('第 20 版')) fail('Version label is missing.');
+if (!html.includes('第 21 版')) fail('Version label is missing.');
 if (!html.includes('id="difficulty-level"')) fail('Difficulty selector is missing.');
 if (!app.includes('function classifyWordDifficulty') || !app.includes('matchesDifficulty(w, dictionary[w], config.difficulty') || !app.includes('/data/word-difficulty.json')) fail('Local corpus-based difficulty filtering is missing.');
 if (!Object.keys(difficultyMap).length || Object.values(difficultyMap).some(level => !['beginner', 'intermediate'].includes(level))) fail('Difficulty map must contain only explicit beginner/intermediate entries; missing entries default to advanced.');
@@ -66,6 +66,8 @@ if (!css.includes('.history-content small.history-definition.is-expanded')) fail
 if (config.name !== 'egoism' || config.main !== 'src/worker.js') fail('Cloudflare Worker config does not match this project.');
 if (!worker.includes('class GameRoom')) fail('Durable Object class GameRoom was not found.');
 if (!worker.includes('ROOMS_BINDING_MISSING') || !worker.includes('room-api-v6')) fail('Room API diagnostics are missing.');
+if (!worker.includes('this.ctx.waitUntil') || !worker.includes('Match initialization failed after WebSocket connection')) fail('WebSocket handshake should not wait for expensive match initialization.');
+if (!css.includes('height: 108px;') || !css.includes('height: 82px;') || !css.includes('-webkit-line-clamp: 2')) fail('Success/meaning area does not have fixed height and clamped meaning text.');
 if (!/function\s+clamp\s*\(/.test(worker)) fail('Worker clamp helper is missing.');
 if (!css.includes('.territory-wipe') || !css.includes('!important')) fail('Territory animation overlay styles are missing.');
 if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('A removed legacy board element is still present.');
