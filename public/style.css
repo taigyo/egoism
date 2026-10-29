@@ -270,3 +270,49 @@
 .difficulty-advanced{border-color:#b77b75;color:#8d3834;background:#f7e9e7}
 .history-content>.difficulty-badge{margin-top:4px}
 .success-banner .difficulty-badge{font-size:11px!important;line-height:1.5!important}
+
+
+/* v21: keep the success/meaning area stable so the board never jumps. */
+.success-banner {
+  height: 108px;
+  min-height: 108px;
+  align-content: flex-start;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 9px 0 10px;
+}
+.success-banner #success-forms {
+  display: inline-block;
+  min-width: 0;
+  max-width: min(48%, 520px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.success-banner .success-meaning {
+  display: -webkit-box;
+  flex: 0 0 100%;
+  max-height: 3.4em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+@media(max-width:520px) {
+  .success-banner {
+    height: 82px;
+    min-height: 82px;
+    padding: 5px 8px;
+    gap: 4px 7px;
+    align-content: flex-start;
+  }
+  .success-banner #success-forms { max-width: 38%; font-size: 12px; }
+  .success-banner .success-meaning {
+    font-size: 12px;
+    line-height: 1.45;
+    max-height: 2.9em;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+}
