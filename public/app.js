@@ -3,6 +3,7 @@ const screens = [...document.querySelectorAll('.screen')];
 const $ = id => document.getElementById(id);
 let dictionary = null;
 let properNounReadings = new Set();
+let wordDifficultyMap = {};
 let meaningDictionary = null;
 let meaningDictionaryPromise = null;
 let wikipediaMeaningDictionary = {};
@@ -60,6 +61,11 @@ async function loadDictionary() {
       return response.json();
     }));
     dictionary = Object.assign({}, ...dictionaries);
+    try {
+      const difficultyResponse = await fetch('/data/word-difficulty.json');
+      if (difficultyResponse.ok) wordDifficultyMap = await difficultyResponse.json();
+      else throw Error(`HTTP ${difficultyResponse.status}`);
+    } catch (error) { console.warn('難易度データを読み込めませんでした。未収録語は上級として扱います。', error); }
     try {
       const properResponse = await fetch('/data/proper-noun-readings.json');
       if (properResponse.ok) properNounReadings = new Set(await properResponse.json());
@@ -164,17 +170,13 @@ function normalizeInput(value) {
   return out;
 }
 function classifyWordDifficulty(reading, forms = []) {
-  if (properNounReadings.has(String(reading || ''))) return 'advanced';
-  const chars = [...String(reading || '')];
-  const safeForms = [...new Set(Array.isArray(forms) ? forms.filter(form => typeof form === 'string') : [])];
-  const isComplexForm = form => /[\u3400-\u4DBF\u{20000}-\u{2FA1F}]/u.test(form) || [...form].length >= 8 || (form.match(/[一-龯]/g) || []).length >= 5;
-  const isIntermediateForm = form => /[ァ-ヺ]/.test(form) || (form.match(/[一-龯]/g) || []).length >= 3;
-  const allFormsComplex = safeForms.length > 0 && safeForms.every(isComplexForm);
-  const allFormsIntermediate = safeForms.length > 0 && safeForms.every(isIntermediateForm);
-  if (chars.length >= 7 || allFormsComplex) return 'advanced';
-  if (chars.length >= 5 || allFormsIntermediate) return 'intermediate';
-  return 'beginner';
+  // The precomputed map uses corpus frequency and metadata. Missing readings default to advanced.
+  return wordDifficultyMap[String(reading || '')] || 'advanced';
 }
+function difficultyLabel(level) {
+  return ({ beginner: '初級', intermediate: '中級', advanced: '上級', unlimited: '無制限' })[level] || '上級';
+}
+function difficultyClass(level) { return `difficulty-badge difficulty-${level || 'advanced'}`; }
 function matchesDifficulty(reading, forms, difficulty) {
   return difficulty === 'unlimited' || classifyWordDifficulty(reading, forms) === difficulty;
 }
@@ -307,6 +309,13 @@ function renderGameHistory() {
     }
     content.append(word, forms);
     if (!entry.unanswered) {
+      const level = classifyWordDifficulty(entry.word, entry.forms || []);
+      const difficulty = document.createElement('small');
+      difficulty.className = difficultyClass(level);
+      difficulty.textContent = `難易度：${difficultyLabel(level)}`;
+      content.append(difficulty);
+    }
+    if (!entry.unanswered) {
       const selectedMeaning = entry.selectedMeaning || pickRandomMeaning(entry.word, entry.forms || []);
       if (selectedMeaning) {
         const fullText = selectedMeaning;
@@ -382,6 +391,9 @@ function showSuccess(word, formsOverride = null) {
   const requestId = ++successMeaningRequest;
   $('success-reading').textContent = word;
   $('success-forms').textContent = forms.slice(0, 10).join(' ・ ') || '表記候補なし';
+  const difficulty = $('success-difficulty');
+  difficulty.textContent = difficultyLabel(classifyWordDifficulty(word, forms));
+  difficulty.className = difficultyClass(classifyWordDifficulty(word, forms));
   const meaning = $('success-meaning');
   meaning.textContent = '';
   meaning.classList.add('hidden');
