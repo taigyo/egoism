@@ -272,10 +272,8 @@
 .success-banner .difficulty-badge{font-size:11px!important;line-height:1.5!important}
 
 
-/* v21: keep the success/meaning area stable so the board never jumps. */
+/* v22: success/meaning area grows naturally; no fixed height. */
 .success-banner {
-  height: 108px;
-  min-height: 108px;
   align-content: flex-start;
   align-items: baseline;
   gap: 4px 12px;
@@ -301,8 +299,6 @@
 }
 @media(max-width:520px) {
   .success-banner {
-    height: 82px;
-    min-height: 82px;
     padding: 5px 8px;
     gap: 4px 7px;
     align-content: flex-start;
@@ -316,3 +312,8 @@
     line-clamp: 2;
   }
 }
+
+/* v22: place the difficulty label beside the answered word in result history. */
+.history-word-row { display:flex; align-items:baseline; justify-content:space-between; gap:12px; min-width:0; }
+.history-word-row > strong { min-width:0; flex:1; }
+.history-word-row > .difficulty-badge { display:inline-flex; flex:0 0 auto; margin:0; overflow:visible; -webkit-line-clamp:unset; -webkit-box-orient:initial; }

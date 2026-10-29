@@ -103,7 +103,7 @@ async function loadWikipediaMeaningsForHistory(entries) {
   const readings = new Set();
   for (const entry of entries) {
     if (!entry || entry.unanswered || !entry.word) continue;
-    const forms = [...new Set(entry.forms || [])];
+    const forms = [...new Set(entry.forms?.length ? entry.forms : (dictionary?.[entry.word] || []))];
     const existing = forms.some(form => meaningDictionary?.[entry.word]?.[form]?.length);
     if (!existing) readings.add(entry.word);
   }
@@ -301,22 +301,27 @@ function renderGameHistory() {
     const word = document.createElement('strong'); word.textContent = entry.unanswered ? `問題：${entry.pattern}` : entry.word;
     if (!entry.unanswered) word.classList.add(entry.who === 'red' ? 'history-word-red' : 'history-word-blue');
     const forms = document.createElement('small');
+    const entryForms = !entry.unanswered ? (entry.forms?.length ? entry.forms : (dictionary?.[entry.word] || [])) : [];
     if (entry.unanswered) {
       forms.textContent = `候補：${(entry.candidates || []).join(' ・ ') || '候補なし'}`;
     } else {
-      const candidates = [...new Set(entry.forms || [])];
+      const candidates = [...new Set(entryForms)];
       forms.textContent = candidates.length > 3 ? `${candidates.slice(0, 3).join(' ・ ')} ほか${candidates.length - 3}件` : candidates.join(' ・ ') || '表記候補なし';
     }
-    content.append(word, forms);
     if (!entry.unanswered) {
-      const level = classifyWordDifficulty(entry.word, entry.forms || []);
+      const wordRow = document.createElement('div');
+      wordRow.className = 'history-word-row';
+      const level = classifyWordDifficulty(entry.word, entryForms);
       const difficulty = document.createElement('small');
       difficulty.className = difficultyClass(level);
-      difficulty.textContent = `難易度：${difficultyLabel(level)}`;
-      content.append(difficulty);
+      difficulty.textContent = difficultyLabel(level);
+      wordRow.append(word, difficulty);
+      content.append(wordRow, forms);
+    } else {
+      content.append(word, forms);
     }
     if (!entry.unanswered) {
-      const selectedMeaning = entry.selectedMeaning || pickRandomMeaning(entry.word, entry.forms || []);
+      const selectedMeaning = entry.selectedMeaning || pickRandomMeaning(entry.word, entryForms);
       if (selectedMeaning) {
         const fullText = selectedMeaning;
         const definition = document.createElement('small');
@@ -387,7 +392,7 @@ function endGame(title, detail) {
 }
 let successMeaningRequest = 0;
 function showSuccess(word, formsOverride = null) {
-  const forms = [...new Set(formsOverride || dictionary?.[word] || [])];
+  const forms = [...new Set(formsOverride?.length ? formsOverride : (dictionary?.[word] || []))];
   const requestId = ++successMeaningRequest;
   $('success-reading').textContent = word;
   $('success-forms').textContent = forms.slice(0, 10).join(' ・ ') || '表記候補なし';
@@ -528,16 +533,35 @@ function joinOnlineRoom() {
 }
 function connectOnline(code, token) {
   disconnectOnline(); online = true; gameEnded = false; lastQuestionId = 0; lastSuccessKey = ''; stopTimers();
-  socket = new WebSocket(websocketUrl(code, token));
-  socket.addEventListener('open', () => setRoomMessage('接続しました。相手の参加を待っています…'));
-  socket.addEventListener('message', event => {
-    let msg; try { msg = JSON.parse(event.data); } catch { return; }
+  const ws = new WebSocket(websocketUrl(code, token));
+  socket = ws;
+  ws.addEventListener('open', () => {
+    if (socket !== ws) return;
+    setRoomMessage('接続しました。相手の参加を待っています…');
+    console.info('[egoism] WebSocket connected', { room: code });
+  });
+  ws.addEventListener('message', event => {
+    if (socket !== ws) return;
+    let msg; try { msg = JSON.parse(event.data); } catch (error) { console.warn('[egoism] Invalid WebSocket message', error); return; }
     if (msg.type === 'error') { if ($('battle').classList.contains('active')) $('answer-message').textContent = msg.message || '接続エラー'; else setRoomMessage(msg.message || '接続エラー'); if (msg.fatal) disconnectOnline(); return; }
     if (msg.type === 'state') applyServerState(msg.state);
     if (msg.type === 'room-full') { setRoomMessage('この部屋は満員です。'); disconnectOnline(); }
   });
-  socket.addEventListener('close', event => { if (online && !gameEnded) setRoomMessage(event.reason === 'room-cleaned' ? '部屋が終了しました。' : 'サーバーとの接続が切れました。部屋IDを使って再接続してください。'); });
-  socket.addEventListener('error', () => setRoomMessage('接続に失敗しました。部屋IDと公開先の設定を確認してください。'));
+  ws.addEventListener('close', event => {
+    console.warn('[egoism] WebSocket closed', { room: code, code: event.code, reason: event.reason, wasClean: event.wasClean });
+    // A delayed close event from a previous socket must not overwrite the current connection state.
+    if (socket !== ws) return;
+    socket = null;
+    if (online && !gameEnded) {
+      const detail = event.reason === 'room-cleaned' ? '部屋が終了しました。' : `サーバーとの接続が切れました（${event.code}${event.reason ? `: ${event.reason}` : ''}）。部屋IDを使って再接続してください。`;
+      setRoomMessage(detail);
+    }
+  });
+  ws.addEventListener('error', event => {
+    if (socket !== ws) return;
+    console.error('[egoism] WebSocket error', { room: code, readyState: ws.readyState, event });
+    setRoomMessage('接続に失敗しました。部屋IDと公開先の設定を確認してください。');
+  });
 }
 function disconnectOnline() {
   online = false;
