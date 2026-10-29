@@ -71,6 +71,7 @@ export class GameRoom {
     this.room = null;
     this.dictionary = null;
     this.properNounReadings = new Set();
+    this.wordDifficultyMap = null;
   }
 
   async loadRoom() {
@@ -90,6 +91,14 @@ export class GameRoom {
       return response.json();
     }));
     this.dictionary = Object.assign({}, ...shards);
+    try {
+      const difficultyResponse = await this.env.ASSETS.fetch('https://egoism-assets/data/word-difficulty.json');
+      if (difficultyResponse.ok) this.wordDifficultyMap = await difficultyResponse.json();
+      else throw new Error(`HTTP ${difficultyResponse.status}`);
+    } catch (error) {
+      console.warn('難易度データを読み込めませんでした。未収録語は上級として扱います。', error);
+      this.wordDifficultyMap = {};
+    }
     try {
       const properResponse = await this.env.ASSETS.fetch('https://egoism-assets/data/proper-noun-readings.json');
       if (properResponse.ok) this.properNounReadings = new Set(await properResponse.json());
@@ -170,7 +179,7 @@ export class GameRoom {
 
   makeQuestion(dict) {
     const room = this.room;
-    const keys = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && word.length >= room.config.lengthMin && word.length <= room.config.lengthMax && matchesDifficulty(word, dict[word], room.config.difficulty, this.properNounReadings));
+    const keys = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && word.length >= room.config.lengthMin && word.length <= room.config.lengthMax && matchesDifficulty(word, dict[word], room.config.difficulty, this.wordDifficultyMap || {}));
     if (!keys.length) return false;
     const available = keys.filter(word => !room.usedWords.includes(word) && !(room.usedAnswers || []).includes(word));
     if (!available.length) return false;
@@ -362,20 +371,12 @@ function normalizeConfig(input = {}) {
     difficulty: ['beginner', 'intermediate', 'advanced', 'unlimited'].includes(input.difficulty) ? input.difficulty : 'intermediate'
   };
 }
-function classifyWordDifficulty(reading, forms = [], properNounReadings = new Set()) {
-  if (properNounReadings.has(String(reading || ''))) return 'advanced';
-  const chars = [...String(reading || '')];
-  const safeForms = [...new Set(Array.isArray(forms) ? forms.filter(form => typeof form === 'string') : [])];
-  const isComplexForm = form => /[\u3400-\u4DBF\u{20000}-\u{2FA1F}]/u.test(form) || [...form].length >= 8 || (form.match(/[一-龯]/g) || []).length >= 5;
-  const isIntermediateForm = form => /[ァ-ヺ]/.test(form) || (form.match(/[一-龯]/g) || []).length >= 3;
-  const allFormsComplex = safeForms.length > 0 && safeForms.every(isComplexForm);
-  const allFormsIntermediate = safeForms.length > 0 && safeForms.every(isIntermediateForm);
-  if (chars.length >= 7 || allFormsComplex) return 'advanced';
-  if (chars.length >= 5 || allFormsIntermediate) return 'intermediate';
-  return 'beginner';
+function classifyWordDifficulty(reading, forms = [], difficultyMap = {}) {
+  // Frequency-covered beginner/intermediate entries are explicit; omitted entries are advanced.
+  return difficultyMap[String(reading || '')] || 'advanced';
 }
-function matchesDifficulty(reading, forms, difficulty, properNounReadings = new Set()) {
-  return difficulty === 'unlimited' || classifyWordDifficulty(reading, forms, properNounReadings) === difficulty;
+function matchesDifficulty(reading, forms, difficulty, difficultyMap = {}) {
+  return difficulty === 'unlimited' || classifyWordDifficulty(reading, forms, difficultyMap) === difficulty;
 }
 function matchesPattern(word, pattern) {
   const chars = [...word], mask = [...pattern];

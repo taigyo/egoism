@@ -1,0 +1,12 @@
+v20で参照した頻度データ（分類マップの作成元）
+
+- BCCWJ_SUW_LUW_combined.zip（BCCWJ）
+- Wikipedia v2.zip（Wikipedia）
+- YoutubeFreqV3.zip（YouTube）
+- Freq_CC100.zip（CC100）
+- jiten_freq_global (2026-10-27).zip（Jiten）
+- JPDB_v2.2_Frequency_Kana_2024-10-13.zip（JPDB）
+- Aozora Bunko(3).zip（青空文庫熟語）
+- InnocentRanked.zip（Innocent Ranked）
+
+このプロジェクトには元の頻度リスト全体は同梱せず、語彙読みごとの難易度分類マップのみを同梱しています。元データの再配布・派生データ公開に関する条件は、各データ提供元の規約を確認してください。
