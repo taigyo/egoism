@@ -32,20 +32,27 @@ const meanings = JSON.parse(read('public/data/meanings.json'));
 const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
-if (!html.includes('第 21 版')) fail('Version label is missing.');
+if (!html.includes('第 22 版')) fail('Version label is missing.');
 if (!html.includes('id="difficulty-level"')) fail('Difficulty selector is missing.');
 if (!app.includes('function classifyWordDifficulty') || !app.includes('matchesDifficulty(w, dictionary[w], config.difficulty') || !app.includes('/data/word-difficulty.json')) fail('Local corpus-based difficulty filtering is missing.');
 if (!Object.keys(difficultyMap).length || Object.values(difficultyMap).some(level => !['beginner', 'intermediate'].includes(level))) fail('Difficulty map must contain only explicit beginner/intermediate entries; missing entries default to advanced.');
 if (difficultyMap['ねこ'] !== 'beginner' || difficultyMap['とうきょう'] !== undefined) fail('Frequency-based sanity examples are incorrect (ねこ should be beginner; Tokyo should be advanced).');
-if (!html.includes('id="success-difficulty"') || !app.includes('難易度：${difficultyLabel(level)}')) fail('Answered word difficulty labels are missing.');
+if (!html.includes('id="success-difficulty"') || !app.includes('difficulty.textContent = difficultyLabel(level)') || !app.includes('history-word-row')) fail('Answered word difficulty labels or result-row placement are missing.');
 if (!fs.existsSync(path.join(root, 'public/data/FREQUENCY-DATA-SOURCES.txt'))) fail('Frequency data source attribution is missing.');
-if (!worker.includes('matchesDifficulty(word, dict[word], room.config.difficulty, this.wordDifficultyMap || {})') || !worker.includes("difficulty: ['beginner', 'intermediate', 'advanced', 'unlimited']") || !worker.includes('/data/word-difficulty.json')) fail('Server-side corpus-based difficulty filtering or config validation is missing.');
-if (!properNounReadings.includes('むらかみはるか') || !app.includes('proper-noun-readings.json') || !worker.includes('proper-noun-readings.json')) fail('Proper-noun candidate data is missing.');
-if (!worker.includes('words-${index + 1}.json')) fail('Online dictionary shard loading is missing.');
+if (!worker.includes("room.config.difficulty === 'unlimited'") || !worker.includes("difficulty: ['beginner', 'intermediate', 'advanced', 'unlimited']") || !worker.includes('/data/word-index.json')) fail('Server-side pre-grouped difficulty pools or config validation are missing.');
+if (!properNounReadings.includes('むらかみはるか') || !app.includes('proper-noun-readings.json')) fail('Proper-noun candidate data is missing from the client.');
+if (!worker.includes('/data/word-index.json') || !worker.includes('function binarySearchWord') || worker.includes('loadDictionary()')) fail('Online server must use the compact reading index instead of merging all dictionary shards.');
+const wordIndex = JSON.parse(read('public/data/word-index.json'));
+const indexedWords = ['beginner', 'intermediate', 'advanced'].flatMap(level => Object.values(wordIndex[level] || {}).flat());
+if (indexedWords.length !== 955832 || !wordIndex.beginner['3'].includes('たべる') || !wordIndex.advanced['5'].includes('とうきょう')) fail('Compact online reading index is incomplete or its difficulty buckets are invalid.');
+for (const level of ['beginner', 'intermediate', 'advanced']) for (const [length, words] of Object.entries(wordIndex[level] || {})) {
+  if (words.some(word => [...word].length !== Number(length))) fail(`Word index length bucket ${level}/${length} contains a mismatched reading.`);
+  for (let i = 1; i < words.length; i++) { if (words[i - 1] > words[i]) { fail(`Word index is not sorted at ${level}/${length}/${i}.`); break; } }
+}
 if (!app.includes('async function showEndOverlay') || !app.includes('await loadMeaningDictionary()')) fail('Results do not wait for meaning data before appearing.');
 if (!app.includes('history-definition-toggle') || !app.includes('Wikipedia ↗')) fail('Expandable meanings or Wikipedia attribution links are missing.');
 if (!html.includes('id="success-meaning"') || !app.includes('function pickRandomMeaning') || !app.includes('loadMeaningsForWord(word, forms)')) fail('Random single-meaning display on answer is missing.');
-if (!app.includes('entry.selectedMeaning || pickRandomMeaning(entry.word, entry.forms || [])')) fail('Random single-meaning display in results is missing.');
+if (!app.includes('entry.selectedMeaning || pickRandomMeaning(entry.word, entryForms)')) fail('Random single-meaning display in results is missing.');
 if (!app.includes('await loadWikipediaMeaningsForHistory(gameHistory)')) fail('Results do not wait for relevant Wikipedia meanings.');
 if (!app.includes("chars.slice(0, 25).join('') + '…'") || !app.includes('chars.length > 25')) fail('Definition preview does not use the 25-character limit.');
 if (app.includes('この単語の意味データはありません。')) fail('Missing definitions should not display placeholder text.');
@@ -67,7 +74,9 @@ if (config.name !== 'egoism' || config.main !== 'src/worker.js') fail('Cloudflar
 if (!worker.includes('class GameRoom')) fail('Durable Object class GameRoom was not found.');
 if (!worker.includes('ROOMS_BINDING_MISSING') || !worker.includes('room-api-v6')) fail('Room API diagnostics are missing.');
 if (!worker.includes('this.ctx.waitUntil') || !worker.includes('Match initialization failed after WebSocket connection')) fail('WebSocket handshake should not wait for expensive match initialization.');
-if (!css.includes('height: 108px;') || !css.includes('height: 82px;') || !css.includes('-webkit-line-clamp: 2')) fail('Success/meaning area does not have fixed height and clamped meaning text.');
+if (!app.includes('WebSocket closed') || !app.includes('socket !== ws')) fail('WebSocket close diagnostics or stale-socket protection is missing.');
+if (css.includes('height: 108px;') || css.includes('height: 82px;') || css.includes('min-height: 108px;') || css.includes('min-height: 82px;') || !css.includes('-webkit-line-clamp: 2')) fail('Success banner must not use the v21 fixed heights; meaning remains clamped.');
+if (!css.includes('.history-word-row') || !css.includes('justify-content:space-between')) fail('Result difficulty badge is not right-aligned beside the word.');
 if (!/function\s+clamp\s*\(/.test(worker)) fail('Worker clamp helper is missing.');
 if (!css.includes('.territory-wipe') || !css.includes('!important')) fail('Territory animation overlay styles are missing.');
 if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('A removed legacy board element is still present.');

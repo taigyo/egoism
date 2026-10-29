@@ -69,9 +69,7 @@ export class GameRoom {
     this.ctx = ctx;
     this.env = env;
     this.room = null;
-    this.dictionary = null;
-    this.properNounReadings = new Set();
-    this.wordDifficultyMap = null;
+    this.wordIndex = null;
   }
 
   async loadRoom() {
@@ -82,30 +80,17 @@ export class GameRoom {
     await this.ctx.storage.put('room', this.room);
     await this.scheduleAlarm();
   }
-  async loadDictionary() {
-    if (this.dictionary) return this.dictionary;
-    const shards = await Promise.all(Array.from({ length: 8 }, async (_, index) => {
-      const filename = `/data/words-${index + 1}.json`;
-      const response = await this.env.ASSETS.fetch(`https://egoism-assets${filename}`);
-      if (!response.ok) throw new Error(`辞書データを読み込めません（${filename}）。`);
-      return response.json();
-    }));
-    this.dictionary = Object.assign({}, ...shards);
-    try {
-      const difficultyResponse = await this.env.ASSETS.fetch('https://egoism-assets/data/word-difficulty.json');
-      if (difficultyResponse.ok) this.wordDifficultyMap = await difficultyResponse.json();
-      else throw new Error(`HTTP ${difficultyResponse.status}`);
-    } catch (error) {
-      console.warn('難易度データを読み込めませんでした。未収録語は上級として扱います。', error);
-      this.wordDifficultyMap = {};
+  async loadWordIndex() {
+    if (this.wordIndex) return this.wordIndex;
+    const response = await this.env.ASSETS.fetch('https://egoism-assets/data/word-index.json');
+    if (!response.ok) throw new Error(`語句索引を読み込めません（HTTP ${response.status}）。`);
+    const index = await response.json();
+    const levels = ['beginner', 'intermediate', 'advanced'];
+    if (!index || typeof index !== 'object' || levels.some(level => !index[level] || typeof index[level] !== 'object')) {
+      throw new Error('語句索引が空か、形式が不正です。');
     }
-    try {
-      const properResponse = await this.env.ASSETS.fetch('https://egoism-assets/data/proper-noun-readings.json');
-      if (properResponse.ok) this.properNounReadings = new Set(await properResponse.json());
-    } catch (error) {
-      console.warn('固有名詞候補リストを読み込めませんでした', error);
-    }
-    return this.dictionary;
+    this.wordIndex = index;
+    return this.wordIndex;
   }
 
   async fetch(request) {
@@ -121,7 +106,7 @@ export class GameRoom {
       if (!room.ended) return json({ error: '対戦終了前の部屋は削除できません。' }, 409);
       for (const ws of this.ctx.getWebSockets()) { try { ws.close(1000, 'room-cleaned'); } catch {} }
       await this.ctx.storage.deleteAll();
-      this.room = null; this.dictionary = null;
+      this.room = null; this.wordIndex = null;
       return json({ ok: true });
     }
 
@@ -157,9 +142,8 @@ export class GameRoom {
     this.ctx.acceptWebSocket(server);
     room.players[role].connected = true;
     const shouldStartMatch = room.players.red.connected && room.players.blue.connected && !room.started && !room.ended;
-    // Persist and acknowledge the WebSocket before loading the large dictionary shards.
-    // Doing the expensive initialization before returning HTTP 101 can make the browser
-    // report a failed WebSocket handshake even though the room itself was created.
+    // Persist and acknowledge the WebSocket before loading the compact word index.
+    // Initialization happens after HTTP 101 so a slower asset fetch does not fail the handshake.
     await this.saveRoom();
     await this.broadcast();
     if (shouldStartMatch) {
@@ -182,30 +166,57 @@ export class GameRoom {
   async startMatch() {
     await this.loadRoom();
     if (!this.room || this.room.started) return;
-    const dict = await this.loadDictionary();
+    const words = await this.loadWordIndex();
     this.room.started = true;
     const startAt = Date.now() + 3500;
     this.room.matchDeadline = this.room.config.matchTime > 0 ? startAt + this.room.config.matchTime * 1000 : 0;
-    if (!this.makeQuestion(dict)) this.endForWordExhaustion();
+    if (!this.makeQuestion(words)) this.endForWordExhaustion();
     this.room.questionDeadline = this.room.ended ? 0 : this.room.config.questionTime > 0 ? startAt + this.room.config.questionTime * 1000 : 0;
     await this.saveRoom();
   }
 
-  makeQuestion(dict) {
+  makeQuestion(index) {
     const room = this.room;
-    const keys = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && word.length >= room.config.lengthMin && word.length <= room.config.lengthMax && matchesDifficulty(word, dict[word], room.config.difficulty, this.wordDifficultyMap || {}));
-    if (!keys.length) return false;
-    const available = keys.filter(word => !room.usedWords.includes(word) && !(room.usedAnswers || []).includes(word));
-    if (!available.length) return false;
-    const answer = available[Math.floor(Math.random() * available.length)];
+    const used = new Set([...(room.usedWords || []), ...(room.usedAnswers || [])]);
+    const levels = room.config.difficulty === 'unlimited'
+      ? ['beginner', 'intermediate', 'advanced']
+      : [room.config.difficulty];
+    const pools = [];
+    let total = 0;
+    for (const level of levels) {
+      for (let length = room.config.lengthMin; length <= room.config.lengthMax; length++) {
+        const pool = index[level]?.[String(length)] || [];
+        if (pool.length) { pools.push({ words: pool, start: total, end: total + pool.length }); total += pool.length; }
+      }
+    }
+    if (!total) return false;
+    // Pick uniformly from pre-grouped pools without scanning nearly one million readings per turn.
+    let answer = '';
+    const attempts = Math.min(100, total);
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const offset = Math.floor(Math.random() * total);
+      const pool = pools.find(item => offset >= item.start && offset < item.end);
+      const candidate = pool.words[offset - pool.start];
+      if (!used.has(candidate)) { answer = candidate; break; }
+    }
+    // Only scan as a fallback when random attempts collide with previously used words.
+    if (!answer) {
+      outer: for (const pool of pools) {
+        for (const candidate of pool.words) {
+          if (!used.has(candidate)) { answer = candidate; break outer; }
+        }
+      }
+    }
+    if (!answer) return false;
     room.answer = answer;
     room.usedWords.push(answer);
+    const answerChars = [...answer];
     const revealLow = Math.min(room.config.revealedMin, room.config.revealedMax);
     const revealHigh = Math.max(room.config.revealedMin, room.config.revealedMax);
-    const count = Math.min([...answer].length, revealLow + Math.floor(Math.random() * (revealHigh - revealLow + 1)));
-    const indexes = [...answer].map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, count);
-    const pattern = [...'〇'.repeat([...answer].length)];
-    indexes.forEach(i => pattern[i] = [...answer][i]);
+    const count = Math.min(answerChars.length, revealLow + Math.floor(Math.random() * (revealHigh - revealLow + 1)));
+    const indexes = answerChars.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, count);
+    const pattern = [...'〇'.repeat(answerChars.length)];
+    indexes.forEach(i => pattern[i] = answerChars[i]);
     room.pattern = pattern.join('');
     room.questionId += 1;
     room.passed = [];
@@ -257,13 +268,15 @@ export class GameRoom {
 
   async handleAnswer(role, word) {
     const room = this.room;
-    const dict = await this.loadDictionary();
+    const words = await this.loadWordIndex();
     if (!/^[ぁ-ゖー]+$/.test(word)) { this.sendRole(role, { type: 'error', message: 'ひらがなで入力してください。' }); return; }
-    if (!dict[word] || !matchesPattern(word, room.pattern)) { this.sendRole(role, { type: 'error', message: '読みが問題の条件に合いません。' }); return; }
+    if (!hasWordInIndex(words, word) || !matchesPattern(word, room.pattern)) { this.sendRole(role, { type: 'error', message: '読みが問題の条件に合いません。' }); return; }
     room.usedAnswers = room.usedAnswers || [];
     if (room.usedAnswers.includes(word) || (room.usedWords.includes(word) && word !== room.answer)) { this.sendRole(role, { type: 'error', message: 'この試合ですでに使われた言葉です。別の言葉を試してください。' }); return; }
     room.usedAnswers.push(word);
-    const forms = [...new Set(dict[word] || [])];
+    // The client already has the full dictionary locally; keep the server state compact.
+    // Empty forms tell the client to use its local reading -> forms mapping.
+    const forms = [];
     room.history.push({ word, who: role, forms });
     room.lastSuccess = { reading: word, forms, questionId: room.questionId };
     room.passed = [];
@@ -274,7 +287,7 @@ export class GameRoom {
       room.position = Math.max(0, Math.min(6, room.position + (role === 'red' ? 1 : -1)));
       if (room.position === 6) { room.ended = true; room.result = { winner: 'red', detail: '6マスすべてを赤に塗り替えました。' }; }
       else if (room.position === 0) { room.ended = true; room.result = { winner: 'blue', detail: '6マスすべてを青に塗り替えました。' }; }
-      else if (!this.makeQuestion(await this.loadDictionary())) this.endForWordExhaustion();
+      else if (!this.makeQuestion(await this.loadWordIndex())) this.endForWordExhaustion();
     }
     await this.saveRoom();
     await this.broadcast();
@@ -285,7 +298,7 @@ export class GameRoom {
     if (!room.passed.includes(role)) room.passed.push(role);
     if (room.passed.length >= 2) {
       await this.recordUnanswered('両者パス');
-      if (!this.makeQuestion(await this.loadDictionary())) this.endForWordExhaustion();
+      if (!this.makeQuestion(await this.loadWordIndex())) this.endForWordExhaustion();
     }
     await this.saveRoom();
     await this.broadcast();
@@ -293,10 +306,23 @@ export class GameRoom {
 
   async recordUnanswered(reason) {
     const room = this.room;
-    const dict = await this.loadDictionary();
-    const candidates = Object.keys(dict).filter(word => /^[ぁ-ゖー]+$/.test(word) && matchesPattern(word, room.pattern));
-    candidates.sort(() => Math.random() - 0.5);
-    room.history.push({ unanswered: true, pattern: room.pattern, reason, candidates: candidates.slice(0, 5), who: 'none', word: '未回答の問題' });
+    const index = await this.loadWordIndex();
+    const length = [...room.pattern].length;
+    const pools = ['beginner', 'intermediate', 'advanced'].map(level => index[level]?.[String(length)] || []);
+    const candidates = [];
+    const seen = new Set();
+    // Random probing is sufficient for the small optional hint list and avoids scanning an entire length bucket.
+    let total = pools.reduce((sum, pool) => sum + pool.length, 0);
+    for (let attempt = 0; attempt < Math.min(6000, total * 2) && candidates.length < 5; attempt++) {
+      const offset = Math.floor(Math.random() * total);
+      let cursor = offset, word = '';
+      for (const pool of pools) {
+        if (cursor < pool.length) { word = pool[cursor]; break; }
+        cursor -= pool.length;
+      }
+      if (word && !seen.has(word) && matchesPattern(word, room.pattern)) { candidates.push(word); seen.add(word); }
+    }
+    room.history.push({ unanswered: true, pattern: room.pattern, reason, candidates, who: 'none', word: '未回答の問題' });
   }
 
   async alarm() {
@@ -304,7 +330,7 @@ export class GameRoom {
     if (!room) return;
     if (room.ended) {
       for (const ws of this.ctx.getWebSockets()) { try { ws.close(1000, 'room-expired'); } catch {} }
-      await this.ctx.storage.deleteAll(); this.room = null; this.dictionary = null;
+      await this.ctx.storage.deleteAll(); this.room = null; this.wordIndex = null;
       return;
     }
     if (!room.started) return;
@@ -318,7 +344,7 @@ export class GameRoom {
       }
     } else if (room.questionDeadline && now >= room.questionDeadline) {
       await this.recordUnanswered('制限時間終了');
-      if (!this.makeQuestion(await this.loadDictionary())) this.endForWordExhaustion();
+      if (!this.makeQuestion(await this.loadWordIndex())) this.endForWordExhaustion();
     }
     await this.saveRoom();
     await this.broadcast();
@@ -365,6 +391,23 @@ export class GameRoom {
   async webSocketError(ws) { await this.webSocketClose(ws); }
 }
 
+function binarySearchWord(sortedWords, target) {
+  let low = 0, high = sortedWords.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >>> 1;
+    const value = sortedWords[mid];
+    if (value === target) return true;
+    if (value < target) low = mid + 1;
+    else high = mid - 1;
+  }
+  return false;
+}
+
+function hasWordInIndex(index, word) {
+  const length = String([...word].length);
+  return ['beginner', 'intermediate', 'advanced'].some(level => binarySearchWord(index[level]?.[length] || [], word));
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -384,13 +427,6 @@ function normalizeConfig(input = {}) {
     overtime: input.overtime === 'draw' ? 'draw' : 'sudden',
     difficulty: ['beginner', 'intermediate', 'advanced', 'unlimited'].includes(input.difficulty) ? input.difficulty : 'intermediate'
   };
-}
-function classifyWordDifficulty(reading, forms = [], difficultyMap = {}) {
-  // Frequency-covered beginner/intermediate entries are explicit; omitted entries are advanced.
-  return difficultyMap[String(reading || '')] || 'advanced';
-}
-function matchesDifficulty(reading, forms, difficulty, difficultyMap = {}) {
-  return difficulty === 'unlimited' || classifyWordDifficulty(reading, forms, difficultyMap) === difficulty;
 }
 function matchesPattern(word, pattern) {
   const chars = [...word], mask = [...pattern];
