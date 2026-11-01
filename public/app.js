@@ -167,15 +167,62 @@ function formatTime(seconds) {
   seconds = Math.max(0, Math.ceil(seconds));
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
-function normalizeInput(value) {
+const ROMAJI_BASE = {
+  a:'あ',i:'い',u:'う',e:'え',o:'お', ka:'か',ki:'き',ku:'く',ke:'け',ko:'こ',
+  sa:'さ',si:'し',su:'す',se:'せ',so:'そ',ta:'た',ti:'ち',tu:'つ',te:'て',to:'と',
+  na:'な',ni:'に',nu:'ぬ',ne:'ね',no:'の',ha:'は',hi:'ひ',hu:'ふ',he:'へ',ho:'ほ',
+  ma:'ま',mi:'み',mu:'む',me:'め',mo:'も',ya:'や',yu:'ゆ',yo:'よ',
+  ra:'ら',ri:'り',ru:'る',re:'れ',ro:'ろ',wa:'わ',wo:'を',
+  ga:'が',gi:'ぎ',gu:'ぐ',ge:'げ',go:'ご',za:'ざ',zi:'じ',ji:'じ',zu:'ず',ze:'ぜ',zo:'ぞ',
+  da:'だ',di:'ぢ',du:'づ',de:'で',do:'ど',ba:'ば',bi:'び',bu:'ぶ',be:'べ',bo:'ぼ',
+  pa:'ぱ',pi:'ぴ',pu:'ぷ',pe:'ぺ',po:'ぽ',
+  kya:'きゃ',kyu:'きゅ',kyo:'きょ',gya:'ぎゃ',gyu:'ぎゅ',gyo:'ぎょ',sha:'しゃ',shu:'しゅ',sho:'しょ',
+  sya:'しゃ',syu:'しゅ',syo:'しょ',ja:'じゃ',ju:'じゅ',jo:'じょ',jya:'じゃ',jyu:'じゅ',jyo:'じょ',
+  cha:'ちゃ',chu:'ちゅ',cho:'ちょ',tya:'ちゃ',tyu:'ちゅ',tyo:'ちょ',nya:'にゃ',nyu:'にゅ',nyo:'にょ',
+  hya:'ひゃ',hyu:'ひゅ',hyo:'ひょ',mya:'みゃ',myu:'みゅ',myo:'みょ',rya:'りゃ',ryu:'りゅ',ryo:'りょ',
+  bya:'びゃ',byu:'びゅ',byo:'びょ',pya:'ぴゃ',pyu:'ぴゅ',pyo:'ぴょ',
+  fa:'ふぁ',fi:'ふぃ',fe:'ふぇ',fo:'ふぉ',wi:'うぃ',we:'うぇ',she:'しぇ',je:'じぇ',che:'ちぇ',shi:'し',chi:'ち',tsu:'つ',
+  tsa:'つぁ',tsi:'つぃ',tse:'つぇ',tso:'つぉ',va:'ゔぁ',vi:'ゔぃ',vu:'ゔ',ve:'ゔぇ',vo:'ゔぉ'
+};
+function romanToHiragana(input, finalize = false) {
+  const text = String(input || '').normalize('NFKC').toLowerCase();
+  if (text === 'konnichiwa') return 'こんにちは';
   let out = '';
-  for (const ch of value) {
-    const code = ch.charCodeAt(0);
-    if (code >= 0x30A1 && code <= 0x30F6) out += String.fromCharCode(code - 0x60);
-    else if (/[ぁ-ゖー]/.test(ch)) out += ch;
+  for (let i = 0; i < text.length;) {
+    const ch = text[i];
+    if (/[ぁ-ゖー]/.test(ch)) { out += ch; i++; continue; }
+    if (/[ァ-ヶ]/.test(ch)) { out += String.fromCharCode(ch.charCodeAt(0) - 0x60); i++; continue; }
+    if (ch === '-') { out += 'ー'; i++; continue; }
+    if (!/[a-z']/.test(ch)) { i++; continue; }
+    const rest = text.slice(i);
+    if (ch === 'n') {
+      if (rest.startsWith("n'") ) { out += 'ん'; i += 2; continue; }
+      if (rest.length === 1) { if (finalize) out += 'ん'; else out += 'n'; i++; continue; }
+      if (rest[1] === 'n') {
+        if (rest.length === 2) { if (finalize) { out += 'ん'; i += 2; continue; } out += rest; break; }
+        if (!/[yaeiou]/.test(rest[2] || '')) { out += 'ん'; i += 2; continue; }
+        out += 'ん'; i++; continue;
+      }
+      if (!/[yaeiou]/.test(rest[1])) { out += 'ん'; i++; continue; }
+    }
+    if (rest.length >= 2 && rest[0] === rest[1] && /^[bcdfghjklmpqrstvwxyz]$/.test(ch)) { out += 'っ'; i++; continue; }
+    let matched = false;
+    for (let size = Math.min(3, rest.length); size >= 1; size--) {
+      const token = rest.slice(0, size);
+      if (ROMAJI_BASE[token]) { out += ROMAJI_BASE[token]; i += size; matched = true; break; }
+    }
+    if (matched) continue;
+    const isPrefix = Object.keys(ROMAJI_BASE).some(token => token.startsWith(rest));
+    if (isPrefix) { out += rest; break; }
+    i++;
   }
   return out;
 }
+function normalizeInput(value, finalize = false) {
+  const normalized = romanToHiragana(value, finalize);
+  return normalized === 'こんにちわ' ? 'こんにちは' : normalized;
+}
+
 function classifyWordDifficulty(reading, forms = []) {
   // The precomputed map uses corpus frequency and metadata. Missing readings default to advanced.
   return wordDifficultyMap[String(reading || '')] || 'advanced';
@@ -189,6 +236,29 @@ function matchesDifficulty(reading, forms, difficulty) {
 }
 function matchesPattern(word, pattern) {
   return [...word].length === [...pattern].length && [...pattern].every((ch, i) => ch === '〇' || ch === [...word][i]);
+}
+function questionTierForCount(count) {
+  if (count >= 20) return 'beginner';
+  if (count >= 5) return 'intermediate';
+  return count >= 1 ? 'advanced' : 'none';
+}
+function matchesQuestionTier(count, requested) {
+  return requested === 'unlimited' || questionTierForCount(count) === requested;
+}
+function makePatternForAnswer(answer, low, high) {
+  const chars = [...answer];
+  const revealCount = Math.min(chars.length, low + Math.floor(Math.random() * (high - low + 1)));
+  const indexes = chars.map((_, i) => i).sort(() => Math.random() - .5).slice(0, revealCount);
+  const pattern = [...'〇'.repeat(chars.length)];
+  indexes.forEach(i => pattern[i] = chars[i]);
+  return pattern.join('');
+}
+function countLocalSolutions(pattern, eligible, used, limit = 20) {
+  let count = 0;
+  for (const word of eligible) {
+    if (!used.has(word) && matchesPattern(word, pattern) && ++count >= limit) return count;
+  }
+  return count;
 }
 function animateQuestionText() {
   for (const id of ['pattern-desktop', 'pattern-mobile']) {
@@ -204,25 +274,34 @@ function animateQuestionText() {
 }
 function buildQuestion() {
   if (!dictionary) { $('answer-message').textContent = '辞書を読み込み中です。少し待ってから再試行してください。'; return; }
-  const eligible = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && w.length >= config.lengthMin && w.length <= config.lengthMax && matchesDifficulty(w, dictionary[w], config.difficulty || 'unlimited'));
-  if (!eligible.length) { $('answer-message').textContent = 'この難易度と文字数に合う単語がありません。難易度または文字数を変えてください。'; return; }
-  const keys = eligible.filter(w => !usedQuestionWords.has(w) && !usedAnswerWords.has(w));
-  if (!keys.length) {
+  const eligible = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && w.length >= config.lengthMin && w.length <= config.lengthMax);
+  if (!eligible.length) { $('answer-message').textContent = 'この文字数に合う単語がありません。文字数設定を変えてください。'; return; }
+  const eligibleByLength = {};
+  for (const word of eligible) (eligibleByLength[word.length] ||= []).push(word);
+  const available = eligible.filter(w => !usedQuestionWords.has(w) && !usedAnswerWords.has(w));
+  if (!available.length) {
     currentAnswer = ''; currentPattern = '';
     $('pattern-desktop').textContent = ''; $('pattern-mobile').textContent = '';
     if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = '';
     endGame('語彙切れ', 'この試合で使える言葉がなくなりました。');
     return;
   }
-  currentAnswer = keys[Math.floor(Math.random() * keys.length)];
-  usedQuestionWords.add(currentAnswer);
   const revealedLow = Math.min(config.revealedMin ?? 1, config.revealedMax ?? 3);
   const revealedHigh = Math.max(config.revealedMin ?? 1, config.revealedMax ?? 3);
-  const n = Math.min(currentAnswer.length, revealedLow + Math.floor(Math.random() * (revealedHigh - revealedLow + 1))); 
-  const indexes = [...currentAnswer].map((_, i) => i).sort(() => Math.random() - .5).slice(0, n);
-  const chars = [...'〇'.repeat(currentAnswer.length)];
-  indexes.forEach(i => chars[i] = currentAnswer[i]);
-  currentPattern = chars.join('');
+  let chosen = null, chosenPattern = '', chosenCount = 0, bestDistance = Infinity;
+  for (let attempt = 0; attempt < 150; attempt++) {
+    const answer = available[Math.floor(Math.random() * available.length)];
+    const pattern = makePatternForAnswer(answer, (config.difficulty || 'unlimited') === 'advanced' ? revealedHigh : revealedLow, revealedHigh);
+    const count = countLocalSolutions(pattern, eligibleByLength[answer.length] || [], new Set([...usedAnswerWords, ...usedQuestionWords]), (config.difficulty || 'unlimited') === 'advanced' ? 5 : 20);
+    const requested = config.difficulty || 'unlimited';
+    const distance = requested === 'unlimited' ? 0 : requested === 'beginner' ? Math.max(0, 20 - count) : requested === 'intermediate' ? (count >= 5 && count < 20 ? 0 : count < 5 ? 5 - count : count - 19) : Math.max(0, count - 4);
+    if (distance < bestDistance) { chosen = answer; chosenPattern = pattern; chosenCount = count; bestDistance = distance; }
+    if (matchesQuestionTier(count, requested)) break;
+  }
+  if (!chosen || chosenCount < 1) { $('answer-message').textContent = '解答候補のある問題を準備できませんでした。設定を変えてください。'; return; }
+  currentAnswer = chosen;
+  usedQuestionWords.add(currentAnswer);
+  currentPattern = chosenPattern;
   questionRecorded = false;
   $('pattern-desktop').textContent = currentPattern;
   $('pattern-mobile').textContent = currentPattern;
@@ -236,8 +315,9 @@ function buildQuestion() {
 }
 function recordUnanswered(reason) {
   if (questionRecorded || !currentAnswer || !dictionary) return;
-  const candidates = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && matchesDifficulty(w, dictionary[w], config.difficulty || 'unlimited') && matchesPattern(w, currentPattern) && !usedAnswerWords.has(w));
-  gameHistory.push({ unanswered: true, pattern: currentPattern, reason, candidates: candidates.sort(() => Math.random() - .5).slice(0, 5), who: 'none', word: '未回答の問題' });
+  const candidates = Object.keys(dictionary).filter(w => /^[ぁ-ゖー]+$/.test(w) && matchesPattern(w, currentPattern) && ((!usedAnswerWords.has(w) && !usedQuestionWords.has(w)) || w === currentAnswer));
+  if (!candidates.includes(currentAnswer)) candidates.unshift(currentAnswer);
+  gameHistory.push({ unanswered: true, pattern: currentPattern, reason, candidates: candidates.sort(() => Math.random() - .5).slice(0, 5), solutionCount: candidates.length, who: 'none', word: '未回答の問題' });
   questionRecorded = true;
 }
 function updateBoard(previous = position, animate = true) {
@@ -310,10 +390,20 @@ function renderGameHistory() {
     const forms = document.createElement('small');
     const entryForms = !entry.unanswered ? (entry.forms?.length ? entry.forms : (dictionary?.[entry.word] || [])) : [];
     if (entry.unanswered) {
-      forms.textContent = `候補：${(entry.candidates || []).join(' ・ ') || '候補なし'}`;
+      let unansweredCandidates = [...new Set(entry.candidates || [])];
+      let solutionCount = entry.solutionCount || 0;
+      if (!unansweredCandidates.length && dictionary && entry.pattern) {
+        const matches = Object.keys(dictionary).filter(candidate => /^[ぁ-ゖー]+$/.test(candidate) && matchesPattern(candidate, entry.pattern));
+        solutionCount = matches.length;
+        unansweredCandidates = matches.slice(0, 5);
+      }
+      const countLabel = solutionCount ? `（${solutionCount >= 20 ? '20件以上' : `${solutionCount}件`}）` : '';
+      forms.textContent = `候補：${unansweredCandidates.join(' ・ ') || '候補なし（辞書に一致する読みがありません）'}${countLabel}`;
     } else {
       const candidates = [...new Set(entryForms)];
-      forms.textContent = candidates.length > 3 ? `${candidates.slice(0, 3).join(' ・ ')} ほか${candidates.length - 3}件` : candidates.join(' ・ ') || '表記候補なし';
+      const selectedForm = entry.selectedForm || chooseDisplayForm(candidates);
+      entry.selectedForm = selectedForm;
+      forms.textContent = formatSelectedForm(candidates, selectedForm);
     }
     if (!entry.unanswered) {
       const wordRow = document.createElement('div');
@@ -328,7 +418,8 @@ function renderGameHistory() {
       content.append(word, forms);
     }
     if (!entry.unanswered) {
-      const selectedMeaning = entry.selectedMeaning || pickRandomMeaning(entry.word, entryForms);
+      const selectedMeaning = entry.selectedMeaning || (entry.selectedForm ? pickRandomMeaning(entry.word, [entry.selectedForm]) : '');
+      entry.selectedMeaning = selectedMeaning;
       if (selectedMeaning) {
         const fullText = selectedMeaning;
         const definition = document.createElement('small');
@@ -336,7 +427,7 @@ function renderGameHistory() {
         const chars = Array.from(fullText);
         const hasToggle = chars.length > 25;
         const collapsedText = hasToggle ? chars.slice(0, 25).join('') + '…' : fullText;
-        definition.textContent = collapsedText;
+        definition.textContent = `→ ${collapsedText}`;
         content.append(definition);
         if (hasToggle) {
           const toggle = document.createElement('button');
@@ -347,7 +438,7 @@ function renderGameHistory() {
           toggle.setAttribute('aria-label', `${entry.word}の意味を全文表示`);
           toggle.addEventListener('click', () => {
             const expanded = toggle.getAttribute('aria-expanded') !== 'true';
-            definition.textContent = expanded ? fullText : collapsedText;
+            definition.textContent = `→ ${expanded ? fullText : collapsedText}`;
             definition.classList.toggle('is-expanded', expanded);
             toggle.textContent = expanded ? '▲' : '▼';
             toggle.setAttribute('aria-expanded', String(expanded));
@@ -380,6 +471,15 @@ async function showEndOverlay() {
   // Load all meaning sources needed by this match before revealing the results.
   await loadMeaningDictionary();
   await loadWikipediaMeaningsForHistory(gameHistory);
+  for (const entry of gameHistory) {
+    if (!entry || entry.unanswered) continue;
+    const forms = [...new Set(entry.forms?.length ? entry.forms : (dictionary?.[entry.word] || []))];
+    if (!entry.selectedForm || !entry.selectedMeaning) {
+      const selected = await chooseDisplayFormWithMeaning(entry.word, forms);
+      if (!entry.selectedForm) entry.selectedForm = selected.selectedForm;
+      if (!entry.selectedMeaning) entry.selectedMeaning = selected.selectedMeaning;
+    }
+  }
   renderGameHistory();
   const overlay = $('end-overlay');
   overlay.classList.remove('hidden', 'result-fade-in');
@@ -398,11 +498,35 @@ function endGame(title, detail) {
   showEndOverlay();
 }
 let successMeaningRequest = 0;
+function clearSuccessDisplay() {
+  successMeaningRequest++;
+  $('success-banner').classList.remove('show');
+  $('success-reading').textContent = '';
+  $('success-forms').textContent = '';
+  $('success-meaning').textContent = '';
+  $('success-meaning').classList.add('hidden');
+}
+function formatSelectedForm(forms, selectedForm) {
+  const others = Math.max(0, forms.length - (selectedForm ? 1 : 0));
+  return `${selectedForm || '表記候補なし'}${others ? ` ほか ${others}件` : ''}`;
+}
+function chooseDisplayForm(forms) {
+  const unique = [...new Set((forms || []).filter(Boolean))];
+  return unique.length ? unique[Math.floor(Math.random() * unique.length)] : '';
+}
+async function chooseDisplayFormWithMeaning(reading, forms) {
+  const unique = [...new Set((forms || []).filter(Boolean))];
+  await loadMeaningDictionary();
+  await loadWikipediaMeaningsForHistory([{ word: reading, forms: unique }]);
+  const withMeanings = unique.filter(form => collectMeaningDefinitions(reading, [form]).length);
+  const selectedForm = chooseDisplayForm(withMeanings.length ? withMeanings : unique);
+  return { selectedForm, selectedMeaning: selectedForm ? pickRandomMeaning(reading, [selectedForm]) : '' };
+}
 function showSuccess(word, formsOverride = null) {
   const forms = [...new Set(formsOverride?.length ? formsOverride : (dictionary?.[word] || []))];
   const requestId = ++successMeaningRequest;
   $('success-reading').textContent = word;
-  $('success-forms').textContent = forms.slice(0, 10).join(' ・ ') || '表記候補なし';
+  $('success-forms').textContent = '表記候補を確認中…';
   const difficulty = $('success-difficulty');
   difficulty.textContent = difficultyLabel(classifyWordDifficulty(word, forms));
   difficulty.className = difficultyClass(classifyWordDifficulty(word, forms));
@@ -410,10 +534,10 @@ function showSuccess(word, formsOverride = null) {
   meaning.textContent = '';
   meaning.classList.add('hidden');
   const banner = $('success-banner'); banner.classList.remove('show'); void banner.offsetWidth; banner.classList.add('show');
-  loadMeaningsForWord(word, forms).then(selected => {
-    if (requestId !== successMeaningRequest || $('success-reading').textContent !== word || !selected) return;
-    meaning.textContent = selected;
-    meaning.classList.remove('hidden');
+  chooseDisplayFormWithMeaning(word, forms).then(({ selectedForm, selectedMeaning }) => {
+    if (requestId !== successMeaningRequest || $('success-reading').textContent !== word) return;
+    $('success-forms').textContent = formatSelectedForm(forms, selectedForm);
+    if (selectedMeaning) { meaning.textContent = `→ ${selectedMeaning}`; meaning.classList.remove('hidden'); }
   }).catch(error => console.error('正解語の意味表示に失敗しました', error));
 }
 function acceptAnswer(word, who = 'red') {
@@ -440,7 +564,7 @@ function startDemo() {
   $('answer').disabled = false; $('pass-button').disabled = false;
   currentAnswer = ''; currentPattern = ''; questionRecorded = false;
   matchRemaining = config.matchTime; questionRemaining = config.questionTime; gameHistory = [];
-  $('end-overlay').classList.add('hidden'); $('match-room-label').textContent = 'LOCAL PREVIEW'; $('success-banner').classList.remove('show');
+  $('end-overlay').classList.add('hidden'); $('match-room-label').textContent = 'LOCAL PREVIEW'; clearSuccessDisplay();
   updateBoard(3, false); goTo('battle'); buildQuestion(); startMatchTimer();
 }
 
@@ -496,7 +620,7 @@ function resetRoomUi() {
   $('room-id').value = ''; $('room-message').textContent = '';
   $('create-room').disabled = false; $('create-room').textContent = '部屋を作成';
   $('end-overlay').classList.add('hidden'); $('game-history').replaceChildren();
-  $('success-banner').classList.remove('show'); $('success-reading').textContent = ''; $('success-forms').textContent = '';
+  clearSuccessDisplay();
   $('answer').value = ''; $('answer-message').textContent = '盤面を押して勝利を目指そう。';
   $('match-room-label').textContent = 'LOCAL PREVIEW'; matchRemaining = 300; questionRemaining = 120;
   updateBoard(3, false); updateClockLocal();
@@ -581,7 +705,7 @@ function connectOnline(code, token, isReconnect = false) {
   clearSocketTimers();
   if (socket) { const previous = socket; socket = null; try { previous.close(1000, 'replaced'); } catch {} }
   online = true;
-  if (!isReconnect) { reconnectAttempts = 0; gameEnded = false; lastQuestionId = 0; lastSuccessKey = ''; stopTimers(); }
+  if (!isReconnect) { reconnectAttempts = 0; gameEnded = false; lastQuestionId = 0; lastSuccessKey = ''; stopTimers(); clearSuccessDisplay(); }
   let ws;
   try { ws = new WebSocket(websocketUrl(code, token)); }
   catch (error) { console.error('[egoism] WebSocket construction failed', error); scheduleOnlineReconnect(code, token); return; }
@@ -670,9 +794,7 @@ function applyServerState(state) {
   if (wasEnded && !state.ended) {
     lastQuestionId = 0;
     lastSuccessKey = '';
-    $('success-banner').classList.remove('show');
-    $('success-reading').textContent = '';
-    $('success-forms').textContent = '';
+    clearSuccessDisplay();
   }
   lastServerState = state;
   position = playerRole === 'blue' ? 6 - state.position : state.position;
@@ -810,7 +932,7 @@ $('answer').addEventListener('keydown', e => {
 $('answer-form').addEventListener('submit', e => {
   e.preventDefault();
   if (answerComposing || $('answer').matches(':disabled')) return;
-  const input = $('answer'), answer = normalizeInput(input.value.trim());
+  const input = $('answer'), answer = normalizeInput(input.value.trim(), true);
   if (!answer || answerSubmissionPending) return;
   if (online) {
     if (sendOnline('answer', { word: answer, questionId: lastServerState?.questionId })) answerSubmissionPending = true;
