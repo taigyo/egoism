@@ -242,6 +242,7 @@ export class GameRoom {
     const room = await this.loadRoom();
     if (!room) return;
     if (!['red', 'blue'].includes(role) || room.players[role].token !== attachment.token) return;
+    if (payload.type === 'ping') { this.send(ws, { type: 'pong', at: payload.at || 0 }); return; }
     try {
       if (payload.type === 'rematch') {
         if (!room.ended) return;
@@ -384,7 +385,13 @@ export class GameRoom {
     const a = ws.deserializeAttachment() || {};
     const room = await this.loadRoom();
     if (room && room.players[a.role] && room.players[a.role].token === a.token) {
-      room.players[a.role].connected = false;
+      // A reconnect may already have opened a replacement socket with the same token.
+      const replacementExists = this.ctx.getWebSockets().some(other => {
+        if (other === ws) return false;
+        const otherAttachment = other.deserializeAttachment() || {};
+        return otherAttachment.role === a.role && otherAttachment.token === a.token;
+      });
+      if (!replacementExists) room.players[a.role].connected = false;
       await this.saveRoom(); await this.broadcast();
     }
   }
