@@ -58,33 +58,123 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
   goTo(b.dataset.go);
 }));
 
+let homeDriftStarted = false;
 async function initHomeWordDrift() {
   const layer = $('home-word-drift');
-  if (!layer || !dictionary) return;
+  if (!layer || !dictionary || homeDriftStarted || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  homeDriftStarted = true;
   await loadMeaningDictionary();
+
+  // v27: collect 100 times the former 14-word pool, preferring unique display forms.
   const keys = Object.keys(dictionary);
-  const chosen = [];
-  for (let attempt = 0; attempt < 500 && chosen.length < 14; attempt++) {
+  const pool = [];
+  const seenForms = new Set();
+  const maxAttempts = Math.min(keys.length * 2, 350000);
+  for (let attempt = 0; attempt < maxAttempts && pool.length < 1400; attempt++) {
     const reading = keys[Math.floor(Math.random() * keys.length)];
-    if (chosen.includes(reading)) continue;
-    if ((dictionary[reading] || []).some(form => meaningDictionary?.[reading]?.[form]?.length)) chosen.push(reading);
-  }
-  layer.replaceChildren();
-  chosen.forEach(reading => {
     const forms = dictionary[reading] || [];
-    const form = forms.find(item => meaningDictionary?.[reading]?.[item]?.length);
-    const meaning = form ? pickRandomMeaning(reading, [form]) : '';
-    if (!meaning) return;
-    const item = document.createElement('span'); item.className = 'drift-word';
-    item.style.setProperty('--drift-x', `${8 + Math.random() * 84}%`);
-    item.style.setProperty('--drift-delay', `${Math.random() * -30}s`);
-    item.style.setProperty('--drift-duration', `${22 + Math.random() * 16}s`);
-    item.style.setProperty('--drift-scale', `${0.7 + Math.random() * 0.7}`);
-    const word = document.createElement('strong'); word.textContent = form;
-    const definition = document.createElement('small'); definition.textContent = meaning;
-    item.append(word, definition); layer.append(item);
-  });
+    const eligible = forms.filter(form => !seenForms.has(form) && meaningDictionary?.[reading]?.[form]?.length);
+    if (!eligible.length) continue;
+    const form = eligible[Math.floor(Math.random() * eligible.length)];
+    const meaning = pickRandomMeaning(reading, [form]);
+    if (!meaning) continue;
+    seenForms.add(form);
+    pool.push({ reading, form, meaning });
+    if (attempt % 5000 === 4999) await new Promise(resolve => requestAnimationFrame(resolve));
+  }
+
+  // If a rare dictionary shape prevents reaching the target, use remaining unique readings.
+  if (pool.length < 1400) {
+    for (const reading of keys) {
+      if (pool.length >= 1400) break;
+      const forms = dictionary[reading] || [];
+      const form = forms.find(item => !seenForms.has(item) && meaningDictionary?.[reading]?.[item]?.length);
+      if (!form) continue;
+      const meaning = pickRandomMeaning(reading, [form]);
+      if (!meaning) continue;
+      seenForms.add(form);
+      pool.push({ reading, form, meaning });
+      if (pool.length % 250 === 0) await new Promise(resolve => requestAnimationFrame(resolve));
+    }
+  }
+
+  // A perimeter grid gives each word its own radial lane, reducing collisions.
+  const lanes = [];
+  const edgeSlots = 18;
+  for (let i = 0; i < edgeSlots; i++) {
+    const t = (i + 0.5) / edgeSlots;
+    lanes.push({ x: t * 100, y: -7 });
+    lanes.push({ x: t * 100, y: 107 });
+    lanes.push({ x: -8, y: t * 100 });
+    lanes.push({ x: 108, y: t * 100 });
+  }
+  for (let i = lanes.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
+  }
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  if (!pool.length) return;
+
+  let index = 0;
+  let laneIndex = 0;
+  const spawn = () => {
+    if (!layer.isConnected || !$('home')?.classList.contains('active')) {
+      window.setTimeout(spawn, 500);
+      return;
+    }
+    const data = pool[index];
+    index = (index + 1) % pool.length;
+    if (index === 0) {
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+    }
+    const lane = lanes[laneIndex++ % lanes.length];
+    const item = document.createElement('span');
+    const layout = Math.random();
+    const vertical = layout < 0.28;
+    const wordOnly = layout >= 0.28 && layout < 0.43;
+    const meaningOnly = layout >= 0.43 && layout < 0.55;
+    const lShape = layout >= 0.55 && layout < 0.76;
+    const variedLetters = Math.random() < 0.22;
+    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}${wordOnly ? ' word-only' : ''}${meaningOnly ? ' meaning-only' : ''}${variedLetters ? ' varied-letters' : ''}`;
+    item.style.left = `${lane.x}%`;
+    item.style.top = `${lane.y}%`;
+    item.style.setProperty('--drift-x', `${50 - lane.x}vw`);
+    item.style.setProperty('--drift-y', `${50 - lane.y}vh`);
+    item.style.setProperty('--drift-duration', `${7.2 + Math.random() * 2.8}s`);
+    item.style.setProperty('--word-size', `${17 + Math.random() * 23}px`);
+    item.style.setProperty('--meaning-size', `${10 + Math.random() * 5}px`);
+    item.style.setProperty('--letter-gap', `${0.02 + Math.random() * 0.18}em`);
+    item.style.setProperty('--drift-opacity', `${0.2 + Math.random() * 0.23}`);
+    const word = document.createElement('strong');
+    if (variedLetters) {
+      for (const character of Array.from(data.form)) {
+        const glyph = document.createElement('span');
+        glyph.textContent = character;
+        glyph.style.fontSize = `${0.72 + Math.random() * 0.58}em`;
+        glyph.style.display = 'inline-block';
+        glyph.style.transform = `translateY(${Math.random() * 5 - 2.5}px)`;
+        word.append(glyph);
+      }
+    } else word.textContent = data.form;
+    const definition = document.createElement('small');
+    definition.textContent = data.meaning;
+    if (wordOnly) item.append(word);
+    else if (meaningOnly) item.append(definition);
+    else item.append(word, definition);
+    layer.append(item);
+    item.addEventListener('animationend', () => item.remove(), { once: true });
+    window.setTimeout(spawn, 120);
+  };
+  // Let the title and primary action arrive before the first background glyph.
+  window.setTimeout(spawn, 1450);
 }
+
 async function loadDictionary() {
   try {
     const shardFiles = ['/data/words-1.json', '/data/words-2.json', '/data/words-3.json', '/data/words-4.json', '/data/words-5.json', '/data/words-6.json', '/data/words-7.json', '/data/words-8.json'];

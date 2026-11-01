@@ -379,3 +379,83 @@
 @supports selector(body:has(#home.active)) {
   body:has(#home.active) .masthead .wordmark { visibility:hidden; }
 }
+
+/* v27: full-bleed canvas; individual screens own their readable gutters. */
+main { max-width:none; padding-left:0; padding-right:0; }
+#settings.screen, #battle.screen {
+  width:min(100%, 1440px);
+  margin-left:auto;
+  margin-right:auto;
+  padding-left:clamp(18px, 4.2vw, 64px);
+  padding-right:clamp(18px, 4.2vw, 64px);
+}
+#home.home-screen { width:100%; margin:0; padding-left:0; padding-right:0; }
+
+/* v27: sequential, radial typography drifting from the foreground to a distant vanishing point. */
+.home-word-drift { perspective:1100px; perspective-origin:50% 50%; }
+.drift-word {
+  top:auto;
+  left:auto;
+  width:max-content;
+  max-width:min(250px, 34vw);
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:5px;
+  text-align:left;
+  opacity:0;
+  transform:translate3d(0,0,0) scale(1.05);
+  transform-origin:center;
+  filter:blur(0);
+  will-change:transform,opacity,filter;
+  animation:radialInkFade var(--drift-duration) cubic-bezier(.35,.05,.75,.55) forwards;
+}
+.drift-word strong {
+  font:600 var(--word-size, 26px)/1.35 var(--serif);
+  letter-spacing:var(--letter-gap, .08em);
+  color:#403b33;
+  white-space:nowrap;
+  text-shadow:0 1px 10px #f4f0e7aa;
+}
+.drift-word small {
+  max-width:220px;
+  font:var(--meaning-size, 12px)/1.55 var(--sans);
+  color:#777064;
+  white-space:normal;
+  text-shadow:0 1px 8px #f4f0e7aa;
+}
+.drift-word.is-vertical { flex-direction:row; align-items:flex-start; gap:8px; }
+.drift-word.is-vertical strong { writing-mode:vertical-rl; text-orientation:mixed; max-height:180px; }
+.drift-word.is-vertical small { writing-mode:horizontal-tb; max-width:110px; margin-top:4px; }
+.drift-word.is-lshape { display:grid; grid-template-columns:auto minmax(60px,150px); grid-template-rows:auto auto; column-gap:8px; row-gap:3px; }
+.drift-word.is-lshape strong { grid-column:1; grid-row:1 / span 2; writing-mode:vertical-rl; }
+.drift-word.is-lshape small { grid-column:2; grid-row:2; align-self:start; }
+.drift-word.word-only,.drift-word.meaning-only { display:block; }
+.drift-word.meaning-only small { font-size:var(--word-size, 20px); line-height:1.45; color:#514b42; }
+@keyframes radialInkFade {
+  0% { opacity:0; transform:translate3d(0,0,0) scale(1.12); filter:blur(0); }
+  9% { opacity:var(--drift-opacity,.32); }
+  48% { opacity:calc(var(--drift-opacity,.32) * .8); }
+  78% { opacity:.12; transform:translate3d(var(--drift-x),var(--drift-y),-480px) scale(.34); filter:blur(2px); }
+  100% { opacity:0; transform:translate3d(var(--drift-x),var(--drift-y),-720px) scale(.08); filter:blur(11px); }
+}
+/* Stagger the cover elements to conceal dictionary loading without blocking interaction. */
+.home-center > * { opacity:0; animation:homeElementIn .9s cubic-bezier(.2,.7,.2,1) forwards; }
+.home-center > *:nth-child(1) { animation-delay:.18s; }
+.home-center > *:nth-child(2) { animation-delay:.62s; }
+.home-center > *:nth-child(3) { animation-delay:1.12s; }
+@keyframes homeElementIn {
+  from { opacity:0; transform:translateY(13px); filter:blur(4px); }
+  to { opacity:1; transform:translateY(0); filter:blur(0); }
+}
+@media(max-width:640px) {
+  #settings.screen,#battle.screen { padding-left:16px; padding-right:16px; }
+  .drift-word { max-width:44vw; }
+  .drift-word small { max-width:38vw; font-size:10px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .home-center > * { opacity:1; animation:none; }
+  .drift-word { animation:none; display:none; }
+}
+.drift-word.varied-letters strong { letter-spacing:0; }
+.drift-word.varied-letters strong span { margin-right:.015em; }
