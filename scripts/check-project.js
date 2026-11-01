@@ -98,3 +98,7 @@ if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} combined dictionary readings, Wikipedia meaning shards, result UI, Cloudflare config, and territory animations.`);
+
+if (!app.includes('pool.length < 500') || !app.includes('400 + Math.random() * 200')) fail('Home word pool size or staggered spawn interval is incorrect.');
+if (!css.includes('@keyframes titleCharacterIn') || !css.includes('@keyframes driftWordLife') || !css.includes('@keyframes driftLetterTighten')) fail('Home title or typography animation is missing.');
+if (!css.includes('#home.screen, #settings.screen, #battle.screen { border-top:1px solid var(--ink); border-bottom:1px solid var(--ink); }')) fail('Screen border treatment is missing.');
