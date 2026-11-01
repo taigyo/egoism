@@ -32,7 +32,7 @@ const meanings = JSON.parse(read('public/data/meanings.json'));
 const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
-if (!html.includes('第 24 版')) fail('Version label is missing.');
+if (!html.includes('第 25 版')) fail('Version label is missing.');
 if (!html.includes('id="difficulty-level"')) fail('Difficulty selector is missing.');
 if (!app.includes('function classifyWordDifficulty') || !app.includes('matchesQuestionTier(count, requested)') || !app.includes('/data/word-difficulty.json')) fail('Displayed word difficulty or answer-count question difficulty is missing.');
 if (!Object.keys(difficultyMap).length || Object.values(difficultyMap).some(level => !['beginner', 'intermediate'].includes(level))) fail('Difficulty map must contain only explicit beginner/intermediate entries; missing entries default to advanced.');
@@ -50,7 +50,7 @@ for (const level of ['beginner', 'intermediate', 'advanced']) for (const [length
   for (let i = 1; i < words.length; i++) { if (words[i - 1] > words[i]) { fail(`Word index is not sorted at ${level}/${length}/${i}.`); break; } }
 }
 if (!app.includes('async function showEndOverlay') || !app.includes('await loadMeaningDictionary()')) fail('Results do not wait for meaning data before appearing.');
-if (!app.includes('history-definition-toggle') || !app.includes('Wikipedia ↗')) fail('Expandable meanings or Wikipedia attribution links are missing.');
+if (!app.includes('history-definition-toggle') || app.includes('Wikipedia ↗')) fail('Expandable meanings or source-link removal check failed.');
 if (!html.includes('id="success-meaning"') || !app.includes('function pickRandomMeaning') || !app.includes('chooseDisplayFormWithMeaning(word, forms)')) fail('Random single-form and matching-meaning display on answer is missing.');
 if (!app.includes('entry.selectedForm = selected.selectedForm') || !app.includes('formatSelectedForm') || !app.includes('ほか ${others}件') || !app.includes('→ ${selectedMeaning}')) fail('Random single-form and matching-meaning display in results is missing.');
 if (!app.includes('await loadWikipediaMeaningsForHistory(gameHistory)')) fail('Results do not wait for relevant Wikipedia meanings.');
@@ -77,6 +77,10 @@ if (!worker.includes('this.ctx.waitUntil') || !worker.includes('Match initializa
 if (!app.includes('WebSocket closed') || !app.includes('socket !== ws')) fail('WebSocket close diagnostics or stale-socket protection is missing.');
 if (!app.includes('compositionstart') || !app.includes('compositionend') || !app.includes('answerSubmissionPending') || !app.includes('function romanToHiragana') || !app.includes('ROMAJI_BASE')) fail('Japanese IME or direct romaji-to-hiragana input safeguards are missing.');
 if (!app.includes('clearSuccessDisplay()') || !app.includes('solutionCount ?')) fail('Previous success display is not cleared or unanswered candidate count is missing.');
+if (!app.includes('https://www.google.com/search?q=') || app.includes('Wikipedia ↗') || app.includes('辞書 ↗')) fail('Result Google search link or source-link removal is missing.');
+if (app.includes("$('battle').addEventListener('click'")) fail('Battle background must not steal focus from the answer input.');
+if (!app.includes("const sequence = ['参', '弐', '壱']")) fail('Countdown sequence is missing.');
+if (!css.includes('width:max-content !important')) fail('Result underline is not constrained to the answer word.');
 if (!app.includes('startSocketHeartbeat') || !app.includes('scheduleOnlineReconnect') || !app.includes('heartbeat-timeout')) fail('Client WebSocket heartbeat/reconnect safeguards are missing.');
 if (!worker.includes("payload.type === 'ping'") || !worker.includes("type: 'pong'")) fail('Durable Object heartbeat response is missing.');
 if (!/\.success-banner\s*\{order:2/.test(css) || !/\.board-panel\s*\{order:1/.test(css)) fail('Mobile battle order is missing.');
