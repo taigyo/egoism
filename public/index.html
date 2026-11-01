@@ -6,19 +6,22 @@
 </head>
 <body>
 <div class="paper-noise" aria-hidden="true"></div>
-<header class="masthead"><a href="#home" class="wordmark" data-go="home" aria-label="エ語彙ズム。 ホーム">エ語彙ズム<span>。</span></a><div class="masthead-right"><span class="edition">語彙遊戯・対戦篇</span><span class="volume">第 01 号</span><span class="version">第 25 版</span></div></header>
+<header class="masthead"><a href="#home" class="wordmark" data-go="home" aria-label="エ語彙ズム。 ホーム">エ語彙ズム<span>。</span></a><div class="masthead-right"><span class="edition">語彙遊戯・対戦篇</span><span class="volume">第 01 号</span><span class="version">第 26 版</span></div></header>
 <main>
-<section id="home" class="screen active">
-  <div class="cover-grid"><div class="cover-main"><p class="kicker">THE WORD PUSH BATTLE / エ語彙ズム。</p><h1>言葉で、<br>押し切れ。</h1><p class="lead">読みを見抜き、言葉を放ち、盤上の陣地を相手側へ塗り替える。<br>語彙とひらめきの、短い真剣勝負。</p><button class="button button-dark" data-go="settings">対戦を準備する <span aria-hidden="true">↗</span></button><div class="cover-note"><span class="note-mark">※</span><p>表示された文字列に合う読みを入力。正解すると相手のマスをひとつ塗り替える。相手の陣地をすべて塗り替えれば勝利。</p></div></div><div class="cover-side"><div class="side-label">盤面見本 / FIELD</div><div class="mini-board" aria-label="6マスの盤面"><i class="mini-red"></i><i class="mini-red"></i><i class="mini-red"></i><i class="mini-blue"></i><i class="mini-blue"></i><i class="mini-blue"></i></div><div class="side-caption">六つの陣地をめぐる語彙戦。</div><div class="big-index">言<br>葉</div></div></div>
-  <div class="home-bottom"><div><span class="section-number">壱</span><div><h2>遊び方</h2><p>正解すると相手のマスをひとつ奪う。先に6マスすべてを自分の色にすれば勝利。</p></div></div><div><span class="section-number">弐</span><div><h2>辞書を用いる</h2><p>読みを基準に判定し、正解後に漢字・表記候補を表示。珍語や人名も候補に含まれます。</p><p class="small muted" id="dictionary-status">辞書データを確認中…</p></div></div></div>
-  <section class="dictionary-search" aria-labelledby="dictionary-search-title"><div class="dictionary-search-heading"><p class="kicker">WORD INDEX / 辞書を引く</p><h2 id="dictionary-search-title">言葉を、ひらく。</h2><p>気になる言葉を入力すると、読みと意味を調べられます。</p></div><form id="dictionary-search-form" class="dictionary-search-form" autocomplete="off"><label class="sr-only" for="dictionary-search-input">調べたい言葉</label><input id="dictionary-search-input" type="search" placeholder="例：言葉、ことば、コトバ" autocomplete="off"><button class="button button-dark" type="submit">引く <span aria-hidden="true">↗</span></button></form><div id="dictionary-search-results" class="dictionary-search-results" aria-live="polite"></div></section>
+<section id="home" class="screen active home-screen">
+  <div class="home-word-drift" id="home-word-drift" aria-hidden="true"></div>
+  <div class="home-center">
+    <p class="home-eyebrow">THE LANGUAGE DUEL</p>
+    <h1 class="home-title">エ語彙ズム<span>。</span></h1>
+    <button class="button button-dark home-start" data-go="settings">対戦をはじめる <span aria-hidden="true">↗</span></button>
+  </div>
 </section>
 <section id="settings" class="screen">
   <div class="page-heading"><button class="text-link" data-go="home">← 表紙へ戻る</button><p class="kicker">MATCH CONFIGURATION / 対戦準備</p><h1 class="page-title">対戦設定</h1><p class="lead compact">勝負の条件を整える。部屋を作成するか、招待された部屋へ参加してください。</p></div>
   <form id="settings-form">
   <div class="settings-layout"><div class="settings-main">
     <fieldset class="setting-group"><legend><span>01</span> 問題の条件</legend><div class="form-grid">
-      <div class="difficulty-setting"><label for="difficulty-level">問題の難易度</label><select id="difficulty-level"><option value="beginner">初級</option><option value="intermediate" selected>中級</option><option value="advanced">上級</option><option value="unlimited">無制限（難易度指定なし）</option></select><small>公開文字の条件に当てはまる答えの数で判定します。初級は候補が多く、上級は候補が少ない問題です。</small></div>
+      <div class="difficulty-setting"><label for="difficulty-level">問題の難易度</label><select id="difficulty-level"><option value="beginner">手軽</option><option value="intermediate" selected>手頃</option><option value="advanced">手に余る</option><option value="unlimited">無制限（指定なし）</option></select><small>公開文字の条件に当てはまる答えの数で判定します。手軽は候補が多く、手に余るは候補が少ない問題です。</small></div>
       <div class="range-setting"><label for="length-min" class="range-setting-heading"><span>読みの文字数</span><b id="length-range-label">4～7文字</b></label><div class="dual-range"><div class="dual-range-track"><span id="length-range-fill"></span></div><input id="length-min" type="range" min="3" max="10" value="4" step="1" aria-label="最短文字数"><input id="length-max" type="range" min="3" max="10" value="7" step="1" aria-label="最長文字数"></div><small>読みの最短・最長文字数を設定します。</small></div>
       <div class="range-setting"><label for="revealed-min" class="range-setting-heading"><span>公開する文字数</span><b id="revealed-range-label">1～2文字</b></label><div class="dual-range"><div class="dual-range-track"><span id="revealed-range-fill"></span></div><input id="revealed-min" type="range" min="0" max="10" value="1" step="1" aria-label="公開する最小文字数"><input id="revealed-max" type="range" min="0" max="10" value="2" step="1" aria-label="公開する最大文字数"></div><small>指定範囲から問題ごとに公開数を決め、位置はランダムに選びます。</small></div>
       <div class="time-settings-row"><label>試合時間<select id="match-time"><option value="180">3分</option><option value="300" selected>5分</option><option value="600">10分</option><option value="900">15分</option><option value="0">制限なし</option></select></label>
