@@ -321,18 +321,17 @@ export class GameRoom {
     const candidates = [];
     const seen = new Set();
     const used = new Set([...(room.usedWords || []), ...(room.usedAnswers || [])]);
-    // Include the generated answer first: every emitted question is guaranteed to have at least one solution.
-    if (room.answer && matchesPattern(room.answer, room.pattern)) { candidates.push(room.answer); seen.add(room.answer); used.delete(room.answer); }
-    const total = pools.reduce((sum, pool) => sum + pool.length, 0);
-    for (let attempt = 0; attempt < Math.min(12000, total * 2) && candidates.length < 5; attempt++) {
-      const offset = Math.floor(Math.random() * total);
-      let cursor = offset, word = '';
-      for (const pool of pools) {
-        if (cursor < pool.length) { word = pool[cursor]; break; }
-        cursor -= pool.length;
+    // Pick examples from easier vocabulary tiers first; retain the generated answer only as a fallback.
+    for (const pool of pools) {
+      for (let attempt = 0; attempt < Math.min(5000, pool.length * 2) && candidates.length < 5; attempt++) {
+        const word = pool[Math.floor(Math.random() * pool.length)];
+        if (word && !used.has(word) && !seen.has(word) && matchesPattern(word, room.pattern)) {
+          candidates.push(word); seen.add(word);
+        }
       }
-      if (word && !used.has(word) && !seen.has(word) && matchesPattern(word, room.pattern)) { candidates.push(word); seen.add(word); }
+      if (candidates.length >= 5) break;
     }
+    if (!candidates.length && room.answer && matchesPattern(room.answer, room.pattern)) candidates.push(room.answer);
     room.history.push({ unanswered: true, pattern: room.pattern, reason, candidates, solutionCount: room.solutionCount || 1, who: 'none', word: '未回答の問題' });
   }
   async alarm() {

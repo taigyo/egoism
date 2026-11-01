@@ -32,7 +32,7 @@ const meanings = JSON.parse(read('public/data/meanings.json'));
 const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
-if (!html.includes('第 25 版')) fail('Version label is missing.');
+if (!html.includes('第 26 版')) fail('Version label is missing.');
 if (!html.includes('id="difficulty-level"')) fail('Difficulty selector is missing.');
 if (!app.includes('function classifyWordDifficulty') || !app.includes('matchesQuestionTier(count, requested)') || !app.includes('/data/word-difficulty.json')) fail('Displayed word difficulty or answer-count question difficulty is missing.');
 if (!Object.keys(difficultyMap).length || Object.values(difficultyMap).some(level => !['beginner', 'intermediate'].includes(level))) fail('Difficulty map must contain only explicit beginner/intermediate entries; missing entries default to advanced.');
@@ -64,7 +64,7 @@ for (const file of wikipediaShards) {
 if (!manifest.dictionary_sources.some(source => source.includes('JA Wikipedia'))) fail('Wikipedia dictionary source is missing from the manifest.');
 if (!app.includes('wipe.animate(') || !app.includes('el.animate(')) fail('Territory and question animations are not driven by the Web Animations API.');
 if (!html.includes('class="time-settings-row"')) fail('Time settings are not grouped into one horizontal row.');
-if (!html.includes('id="dictionary-search-form"') || !app.includes('async function lookupHomeWord')) fail('Home dictionary lookup is missing.');
+if (!html.includes('id="home-word-drift"') || !app.includes('async function initHomeWordDrift')) fail('Cinematic home word drift is missing.');
 if (!html.includes('colophon-credits') || html.includes('class="dictionary-attribution"')) fail('Dictionary attribution is not consolidated in the footer.');
 if (!app.includes('usedQuestionWords') || !app.includes('usedAnswerWords') || !worker.includes('usedAnswers')) fail('Per-match duplicate word prevention is missing.');
 if (!app.includes("config.matchTime === 0 ? '∞' : formatTime(matchRemaining)") || !app.includes("config.matchTime === 0 ? '∞' : formatTime(match)")) fail('Unlimited and expired timer displays are not distinguished.');
@@ -80,6 +80,12 @@ if (!app.includes('clearSuccessDisplay()') || !app.includes('solutionCount ?')) 
 if (!app.includes('https://www.google.com/search?q=') || app.includes('Wikipedia ↗') || app.includes('辞書 ↗')) fail('Result Google search link or source-link removal is missing.');
 if (app.includes("$('battle').addEventListener('click'")) fail('Battle background must not steal focus from the answer input.');
 if (!app.includes("const sequence = ['参', '弐', '壱']")) fail('Countdown sequence is missing.');
+if (!html.includes('<option value="beginner">手軽</option>') || !html.includes('<option value="intermediate" selected>手頃</option>') || !html.includes('<option value="advanced">手に余る</option>')) fail('Question difficulty wording is missing.');
+if (!app.includes('function animateInvalidAnswer') || !css.includes('@keyframes answerShake') || !css.includes('@keyframes answerBlueFade')) fail('Invalid-answer shake and opponent-color fade are missing.');
+if (!app.includes('function showUnansweredExample') || !worker.includes('Pick examples from easier vocabulary tiers first')) fail('Pass-question example selection is missing.');
+if (!app.includes('if (unique.length <= 3) return unique.join')) fail('Small answer-form candidate sets are not expanded.');
+if (!html.includes('home-title') || html.includes('盤面見本') || html.includes('遊び方')) fail('Home cover cleanup is incomplete.');
+
 if (!css.includes('width:max-content !important')) fail('Result underline is not constrained to the answer word.');
 if (!app.includes('startSocketHeartbeat') || !app.includes('scheduleOnlineReconnect') || !app.includes('heartbeat-timeout')) fail('Client WebSocket heartbeat/reconnect safeguards are missing.');
 if (!worker.includes("payload.type === 'ping'") || !worker.includes("type: 'pong'")) fail('Durable Object heartbeat response is missing.');
