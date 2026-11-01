@@ -333,3 +333,21 @@
   .answer-area{order:4}
   #answer{font-size:16px!important;ime-mode:active}
 }
+
+/* v25: result underline follows only the answer text; result forms open Google search. */
+.history-content strong.history-word-red,
+.history-content strong.history-word-blue {
+  display:inline-block !important;
+  width:max-content !important;
+  max-width:100%;
+  flex:0 1 auto !important;
+  align-self:flex-start;
+}
+.history-google-link {
+  color:inherit;
+  text-decoration:none;
+  text-underline-offset:3px;
+}
+.history-google-link:hover { color:var(--blue); text-decoration:underline; }
+.history-entry { grid-template-columns:28px minmax(0,1fr); }
+@media(max-width:640px) { .history-entry { grid-template-columns:22px minmax(0,1fr); } }

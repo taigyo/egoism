@@ -48,7 +48,6 @@ const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 function goTo(id) {
   screens.forEach(s => s.classList.toggle('active', s.id === id));
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (id === 'battle' && !countdownRunning && !gameEnded) $('answer').focus({ preventScroll: true });
 }
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', async () => {
   if (online && b.dataset.go !== 'battle') {
@@ -403,7 +402,20 @@ function renderGameHistory() {
       const candidates = [...new Set(entryForms)];
       const selectedForm = entry.selectedForm || chooseDisplayForm(candidates);
       entry.selectedForm = selectedForm;
-      forms.textContent = formatSelectedForm(candidates, selectedForm);
+      if (selectedForm) {
+        const google = document.createElement('a');
+        google.className = 'history-google-link';
+        google.textContent = selectedForm;
+        google.href = `https://www.google.com/search?q=${encodeURIComponent(selectedForm)}`;
+        google.target = '_blank';
+        google.rel = 'noopener noreferrer';
+        google.setAttribute('aria-label', `${selectedForm}をGoogleで検索（新しいタブ）`);
+        forms.append(google);
+        const others = Math.max(0, candidates.length - 1);
+        if (others) forms.append(document.createTextNode(` ほか ${others}件`));
+      } else {
+        forms.textContent = '表記候補なし';
+      }
     }
     if (!entry.unanswered) {
       const wordRow = document.createElement('div');
@@ -448,23 +460,8 @@ function renderGameHistory() {
         }
       }
     }
-    const links = document.createElement('span');
-    links.className = 'history-links';
-    if (!entry.unanswered) {
-      const sourceWord = (entry.forms || [])[0] || entry.word;
-      const meaning = document.createElement('a');
-      meaning.className = 'history-meaning-link'; meaning.textContent = '辞書 ↗';
-      meaning.href = 'https://ja.wiktionary.org/wiki/' + encodeURIComponent(sourceWord);
-      meaning.target = '_blank'; meaning.rel = 'noopener noreferrer'; meaning.setAttribute('aria-label', `${entry.word}の辞書ページを開く`);
-      const wikipedia = document.createElement('a');
-      wikipedia.className = 'history-meaning-link wikipedia-link';
-      wikipedia.textContent = 'Wikipedia ↗';
-      wikipedia.href = 'https://ja.wikipedia.org/wiki/' + encodeURIComponent(sourceWord);
-      wikipedia.target = '_blank'; wikipedia.rel = 'noopener noreferrer';
-      wikipedia.setAttribute('aria-label', `${sourceWord}のWikipediaページを開く`);
-      links.append(meaning, wikipedia);
-    }
-    li.append(number, content, links); list.append(li);
+    li.append(number, content);
+    list.append(li);
   });
 }
 async function showEndOverlay() {
@@ -770,17 +767,18 @@ function startCountdown() {
   let index = 0;
   const showNext = () => {
     if (index >= sequence.length) {
-      glyph.animate([{ opacity: 1, transform: 'scale(1.18)' }, { opacity: 0, transform: 'scale(1.65)' }], { duration: 650, easing: 'ease-out', fill: 'forwards' });
-      countdownTimer = setTimeout(() => {
-        $('countdown-overlay').classList.add('hidden');
-        countdownRunning = false; countdownTimer = null; $('answer').disabled = false;
-        if (!gameEnded && online) $('answer').focus({ preventScroll: true });
-      }, 650);
+      $('countdown-overlay').classList.add('hidden');
+      countdownRunning = false;
+      countdownTimer = null;
+      $('answer').disabled = false;
       return;
     }
     glyph.textContent = sequence[index++];
-    glyph.getAnimations().forEach(a => a.cancel());
-    glyph.animate([{ opacity: 0, transform: 'scale(.45)' }, { opacity: 1, transform: 'scale(1.08)', offset: .68 }, { opacity: 0, transform: 'scale(1.42)' }], { duration: 900, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'forwards' });
+    glyph.getAnimations().forEach(animation => animation.cancel());
+    glyph.animate(
+      [{ opacity: 0, transform: 'scale(.45)' }, { opacity: 1, transform: 'scale(1.08)', offset: .68 }, { opacity: 0, transform: 'scale(1.42)' }],
+      { duration: 900, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'forwards' }
+    );
     countdownTimer = setTimeout(showNext, 900);
   };
   showNext();
@@ -941,7 +939,6 @@ $('answer-form').addEventListener('submit', e => {
     acceptAnswer(answer, 'red');
     if (currentPattern === '') input.value = '';
   }
-  if (!gameEnded) input.focus({ preventScroll: true });
 });
 $('pass-button').addEventListener('click', () => {
   if (online) sendOnline('pass', { questionId: lastServerState?.questionId });
@@ -950,11 +947,6 @@ $('pass-button').addEventListener('click', () => {
 });
 $('opponent-test').addEventListener('click', () => { if (!online) acceptAnswer(currentAnswer, 'blue'); if (!gameEnded) $('answer').focus({ preventScroll: true }); });
 $('rematch').addEventListener('click', () => { if (online) { if (lastServerState?.ended) { sendOnline('rematch'); $('rematch').disabled = true; $('rematch').textContent = '再戦を待っています…'; $('end-detail').textContent = '再戦を申し込みました。相手が押すのを待っています。'; } } else startDemo(); });
-// Do not steal focus from the first keypress: browsers do not replay that key after focus changes.
-$('battle').addEventListener('click', e => {
-  if (e.target.closest('button') || e.target.closest('input') || !$('end-overlay').classList.contains('hidden')) return;
-  $('answer').focus({ preventScroll: true });
-});
 $('answer').addEventListener('blur', () => {
   // Do not steal focus during IME candidate selection or mobile keyboard transitions.
 });
