@@ -59,18 +59,33 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
 }));
 
 let homeDriftStarted = false;
+function animateHomeTitle() {
+  const title = document.querySelector('.home-title');
+  if (!title || title.dataset.letterAnimated === 'true') return;
+  title.dataset.letterAnimated = 'true';
+  const chars = Array.from(title.textContent);
+  title.replaceChildren();
+  chars.forEach((character, index) => {
+    const glyph = document.createElement('span');
+    glyph.textContent = character;
+    glyph.className = 'home-title-glyph';
+    glyph.style.setProperty('--glyph-index', index);
+    if (character === '。') glyph.classList.add('title-period');
+    title.append(glyph);
+  });
+}
+
 async function initHomeWordDrift() {
   const layer = $('home-word-drift');
   if (!layer || !dictionary || homeDriftStarted || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   homeDriftStarted = true;
+  animateHomeTitle();
   await loadMeaningDictionary();
-
-  // v27: collect 100 times the former 14-word pool, preferring unique display forms.
   const keys = Object.keys(dictionary);
   const pool = [];
   const seenForms = new Set();
   const maxAttempts = Math.min(keys.length * 2, 350000);
-  for (let attempt = 0; attempt < maxAttempts && pool.length < 1400; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts && pool.length < 500; attempt++) {
     const reading = keys[Math.floor(Math.random() * keys.length)];
     const forms = dictionary[reading] || [];
     const eligible = forms.filter(form => !seenForms.has(form) && meaningDictionary?.[reading]?.[form]?.length);
@@ -82,44 +97,25 @@ async function initHomeWordDrift() {
     pool.push({ reading, form, meaning });
     if (attempt % 5000 === 4999) await new Promise(resolve => requestAnimationFrame(resolve));
   }
-
-  // If a rare dictionary shape prevents reaching the target, use remaining unique readings.
-  if (pool.length < 1400) {
+  if (pool.length < 500) {
     for (const reading of keys) {
-      if (pool.length >= 1400) break;
-      const forms = dictionary[reading] || [];
-      const form = forms.find(item => !seenForms.has(item) && meaningDictionary?.[reading]?.[item]?.length);
+      if (pool.length >= 500) break;
+      const form = (dictionary[reading] || []).find(item => !seenForms.has(item) && meaningDictionary?.[reading]?.[item]?.length);
       if (!form) continue;
       const meaning = pickRandomMeaning(reading, [form]);
       if (!meaning) continue;
       seenForms.add(form);
       pool.push({ reading, form, meaning });
-      if (pool.length % 250 === 0) await new Promise(resolve => requestAnimationFrame(resolve));
+      if (pool.length % 100 === 0) await new Promise(resolve => requestAnimationFrame(resolve));
     }
-  }
-
-  // A perimeter grid gives each word its own radial lane, reducing collisions.
-  const lanes = [];
-  const edgeSlots = 18;
-  for (let i = 0; i < edgeSlots; i++) {
-    const t = (i + 0.5) / edgeSlots;
-    lanes.push({ x: t * 100, y: -7 });
-    lanes.push({ x: t * 100, y: 107 });
-    lanes.push({ x: -8, y: t * 100 });
-    lanes.push({ x: 108, y: t * 100 });
-  }
-  for (let i = lanes.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
   }
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   if (!pool.length) return;
-
   let index = 0;
-  let laneIndex = 0;
+  const occupied = [];
   const spawn = () => {
     if (!layer.isConnected || !$('home')?.classList.contains('active')) {
       window.setTimeout(spawn, 500);
@@ -133,24 +129,31 @@ async function initHomeWordDrift() {
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }
     }
-    const lane = lanes[laneIndex++ % lanes.length];
     const item = document.createElement('span');
     const layout = Math.random();
-    const vertical = layout < 0.28;
-    const wordOnly = layout >= 0.28 && layout < 0.43;
-    const meaningOnly = layout >= 0.43 && layout < 0.55;
-    const lShape = layout >= 0.55 && layout < 0.76;
-    const variedLetters = Math.random() < 0.22;
-    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}${wordOnly ? ' word-only' : ''}${meaningOnly ? ' meaning-only' : ''}${variedLetters ? ' varied-letters' : ''}`;
-    item.style.left = `${lane.x}%`;
-    item.style.top = `${lane.y}%`;
-    item.style.setProperty('--drift-x', `${50 - lane.x}vw`);
-    item.style.setProperty('--drift-y', `${50 - lane.y}vh`);
-    item.style.setProperty('--drift-duration', `${7.2 + Math.random() * 2.8}s`);
-    item.style.setProperty('--word-size', `${17 + Math.random() * 23}px`);
-    item.style.setProperty('--meaning-size', `${10 + Math.random() * 5}px`);
-    item.style.setProperty('--letter-gap', `${0.02 + Math.random() * 0.18}em`);
-    item.style.setProperty('--drift-opacity', `${0.2 + Math.random() * 0.23}`);
+    const vertical = layout < 0.25;
+    const lShape = layout >= 0.25 && layout < 0.43;
+    const variedLetters = Math.random() < 0.2;
+    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}${variedLetters ? ' varied-letters' : ''}`;
+    let x = 8 + Math.random() * 78;
+    let y = 10 + Math.random() * 72;
+    for (let attempt = 0; attempt < 18; attempt++) {
+      const candidateX = 8 + Math.random() * 78;
+      const candidateY = 10 + Math.random() * 72;
+      if (occupied.every(pos => Math.hypot((candidateX - pos.x) * 0.75, candidateY - pos.y) > 22)) {
+        x = candidateX; y = candidateY; break;
+      }
+    }
+    occupied.push({ x, y });
+    if (occupied.length > 24) occupied.shift();
+    item.style.left = `${x}%`;
+    item.style.top = `${y}%`;
+    item.style.setProperty('--word-size', `${20 + Math.random() * 26}px`);
+    item.style.setProperty('--meaning-size', `${10 + Math.random() * 7}px`);
+    item.style.setProperty('--letter-gap', `${0.16 + Math.random() * 0.38}em`);
+    item.style.setProperty('--drift-opacity', `${0.2 + Math.random() * 0.22}`);
+    item.style.setProperty('--drift-x', `${(Math.random() - 0.5) * 3}vw`);
+    item.style.setProperty('--drift-y', `${(Math.random() - 0.5) * 3}vh`);
     const word = document.createElement('strong');
     if (variedLetters) {
       for (const character of Array.from(data.form)) {
@@ -164,15 +167,24 @@ async function initHomeWordDrift() {
     } else word.textContent = data.form;
     const definition = document.createElement('small');
     definition.textContent = data.meaning;
-    if (wordOnly) item.append(word);
-    else if (meaningOnly) item.append(definition);
-    else item.append(word, definition);
+    definition.setAttribute('aria-hidden', 'true');
+    item.append(word);
     layer.append(item);
-    item.addEventListener('animationend', () => item.remove(), { once: true });
-    window.setTimeout(spawn, 120);
+    requestAnimationFrame(() => item.classList.add('settled'));
+    const meaningDelay = 500 + Math.random() * 6500;
+    window.setTimeout(() => {
+      if (!item.isConnected) return;
+      item.append(definition);
+      item.classList.add('has-meaning');
+      window.setTimeout(() => {
+        if (!item.isConnected) return;
+        item.classList.add('ink-fade');
+        window.setTimeout(() => item.remove(), 1500);
+      }, 2000);
+    }, meaningDelay);
+    window.setTimeout(spawn, 400 + Math.random() * 5600);
   };
-  // Let the title and primary action arrive before the first background glyph.
-  window.setTimeout(spawn, 1450);
+  window.setTimeout(spawn, 1800);
 }
 
 async function loadDictionary() {

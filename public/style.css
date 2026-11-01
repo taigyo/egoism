@@ -459,3 +459,29 @@ main { max-width:none; padding-left:0; padding-right:0; }
 }
 .drift-word.varied-letters strong { letter-spacing:0; }
 .drift-word.varied-letters strong span { margin-right:.015em; }
+
+
+/* v28: letter-by-letter title and delayed ink typography. */
+.home-title .home-title-glyph { display:inline-block; opacity:0; transform:translateY(.22em); filter:blur(5px); animation:homeGlyphIn .72s cubic-bezier(.2,.7,.2,1) forwards; animation-delay:calc(.22s + var(--glyph-index) * .105s); }
+.home-title .home-title-glyph.title-period { color:var(--red); }
+@keyframes homeGlyphIn { to { opacity:1; transform:translateY(0); filter:blur(0); } }
+.drift-word { top:auto; left:auto; width:max-content; max-width:min(280px,42vw); display:flex; flex-direction:column; align-items:flex-start; gap:5px; text-align:left; opacity:0; transform:translate3d(0,0,0) scale(1); filter:blur(0); will-change:transform,opacity,filter; animation:inkAppear .65s ease-out forwards; transition:filter 1.25s ease,opacity 1.25s ease,transform 1.25s ease; }
+.drift-word strong { font:600 var(--word-size,26px)/1.35 var(--serif); letter-spacing:var(--letter-gap,.24em); color:#403b33; white-space:nowrap; text-shadow:0 1px 10px #f4f0e7aa; transition:letter-spacing 1.45s cubic-bezier(.2,.7,.2,1); }
+.drift-word.settled strong { letter-spacing:.025em; }
+.drift-word small { max-width:230px; font:var(--meaning-size,12px)/1.55 var(--sans); color:#777064; white-space:normal; text-shadow:0 1px 8px #f4f0e7aa; opacity:0; transform:translateY(5px); filter:blur(3px); transition:opacity .8s ease,transform .8s ease,filter .8s ease; }
+.drift-word.has-meaning small { opacity:.9; transform:translateY(0); filter:blur(0); }
+.drift-word.is-vertical { flex-direction:row; align-items:flex-start; gap:8px; }
+.drift-word.is-vertical strong { writing-mode:vertical-rl; text-orientation:mixed; max-height:180px; }
+.drift-word.is-vertical small { writing-mode:horizontal-tb; max-width:110px; margin-top:4px; }
+.drift-word.is-lshape { display:grid; grid-template-columns:auto minmax(60px,150px); grid-template-rows:auto auto; column-gap:8px; row-gap:3px; }
+.drift-word.is-lshape strong { grid-column:1; grid-row:1 / span 2; writing-mode:vertical-rl; }
+.drift-word.is-lshape small { grid-column:2; grid-row:2; align-self:start; }
+.drift-word.ink-fade { opacity:0 !important; filter:blur(13px) !important; transform:translate3d(var(--drift-x),var(--drift-y),0) scale(.96) !important; }
+@keyframes inkAppear { from{opacity:0;filter:blur(3px)} to{opacity:var(--drift-opacity,.3);filter:blur(0)} }
+.drift-word.varied-letters strong { letter-spacing:0; }
+.drift-word.varied-letters strong span { margin-right:.015em; }
+.masthead { border-bottom:0; }
+.colophon { border-top:0; }
+main > #home.screen, main > #settings.screen, main > #battle.screen { border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+@media(max-width:640px) { .drift-word { max-width:48vw; } .drift-word small { max-width:42vw; font-size:10px; } }
+@media(prefers-reduced-motion:reduce) { .home-title .home-title-glyph { opacity:1;animation:none;filter:none;transform:none; } .drift-word { animation:none;display:none; } }
