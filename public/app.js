@@ -26,6 +26,13 @@ let inOvertime = false;
 let questionRecorded = false;
 let online = false;
 let socket = null;
+let reconnectTimer = null;
+let heartbeatTimer = null;
+let heartbeatWatchdog = null;
+let reconnectAttempts = 0;
+let answerComposing = false;
+let lastCompositionEnd = 0;
+let answerSubmissionPending = false;
 let roomCode = '';
 let roomToken = '';
 let playerRole = '';
@@ -531,41 +538,97 @@ function joinOnlineRoom() {
   try { sessionStorage.setItem('egoism-room:' + roomCode, JSON.stringify({ token: roomToken, role: playerRole })); } catch {}
   setRoomMessage('部屋に接続しています…'); connectOnline(roomCode, roomToken);
 }
-function connectOnline(code, token) {
-  disconnectOnline(); online = true; gameEnded = false; lastQuestionId = 0; lastSuccessKey = ''; stopTimers();
-  const ws = new WebSocket(websocketUrl(code, token));
+function clearSocketTimers() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (heartbeatWatchdog) clearTimeout(heartbeatWatchdog);
+  heartbeatTimer = heartbeatWatchdog = null;
+}
+function scheduleOnlineReconnect(code, token) {
+  if (!online || gameEnded || reconnectTimer) return;
+  if (reconnectAttempts >= 12) {
+    setRoomMessage('接続が回復しません。部屋IDを使って再接続してください。');
+    return;
+  }
+  const delay = Math.min(15000, 1000 * (2 ** Math.min(reconnectAttempts, 4)));
+  reconnectAttempts++;
+  setRoomMessage(`接続が切れました。${Math.ceil(delay / 1000)}秒後に再接続します…（${reconnectAttempts}/12）`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (online && !gameEnded && !socket) connectOnline(code, token, true);
+  }, delay);
+}
+function startSocketHeartbeat(ws, code, token) {
+  clearSocketTimers();
+  heartbeatTimer = setInterval(() => {
+    if (socket !== ws || ws.readyState !== WebSocket.OPEN) return;
+    try {
+      ws.send(JSON.stringify({ type: 'ping', at: Date.now() }));
+      if (heartbeatWatchdog) clearTimeout(heartbeatWatchdog);
+      heartbeatWatchdog = setTimeout(() => {
+        if (socket === ws) {
+          console.warn('[egoism] WebSocket heartbeat timed out', { room: code });
+          try { ws.close(4000, 'heartbeat-timeout'); } catch {}
+        }
+      }, 50000);
+    } catch (error) {
+      console.warn('[egoism] WebSocket heartbeat send failed', error);
+      try { ws.close(4000, 'heartbeat-send-failed'); } catch {}
+    }
+  }, 20000);
+}
+function connectOnline(code, token, isReconnect = false) {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  clearSocketTimers();
+  if (socket) { const previous = socket; socket = null; try { previous.close(1000, 'replaced'); } catch {} }
+  online = true;
+  if (!isReconnect) { reconnectAttempts = 0; gameEnded = false; lastQuestionId = 0; lastSuccessKey = ''; stopTimers(); }
+  let ws;
+  try { ws = new WebSocket(websocketUrl(code, token)); }
+  catch (error) { console.error('[egoism] WebSocket construction failed', error); scheduleOnlineReconnect(code, token); return; }
   socket = ws;
   ws.addEventListener('open', () => {
     if (socket !== ws) return;
-    setRoomMessage('接続しました。相手の参加を待っています…');
-    console.info('[egoism] WebSocket connected', { room: code });
+    reconnectAttempts = 0;
+    setRoomMessage(isReconnect ? 'サーバーに再接続しました。対戦状態を確認しています…' : '接続しました。相手の参加を待っています…');
+    console.info('[egoism] WebSocket connected', { room: code, reconnect: isReconnect });
+    startSocketHeartbeat(ws, code, token);
   });
   ws.addEventListener('message', event => {
     if (socket !== ws) return;
     let msg; try { msg = JSON.parse(event.data); } catch (error) { console.warn('[egoism] Invalid WebSocket message', error); return; }
-    if (msg.type === 'error') { if ($('battle').classList.contains('active')) $('answer-message').textContent = msg.message || '接続エラー'; else setRoomMessage(msg.message || '接続エラー'); if (msg.fatal) disconnectOnline(); return; }
+    if (msg.type === 'pong') {
+      if (heartbeatWatchdog) clearTimeout(heartbeatWatchdog);
+      heartbeatWatchdog = null;
+      return;
+    }
+    if (msg.type === 'error') {
+      answerSubmissionPending = false;
+      if ($('battle').classList.contains('active')) $('answer-message').textContent = msg.message || '接続エラー';
+      else setRoomMessage(msg.message || '接続エラー');
+      if (msg.fatal) disconnectOnline();
+      return;
+    }
     if (msg.type === 'state') applyServerState(msg.state);
     if (msg.type === 'room-full') { setRoomMessage('この部屋は満員です。'); disconnectOnline(); }
   });
   ws.addEventListener('close', event => {
     console.warn('[egoism] WebSocket closed', { room: code, code: event.code, reason: event.reason, wasClean: event.wasClean });
-    // A delayed close event from a previous socket must not overwrite the current connection state.
     if (socket !== ws) return;
-    socket = null;
-    if (online && !gameEnded) {
-      const detail = event.reason === 'room-cleaned' ? '部屋が終了しました。' : `サーバーとの接続が切れました（${event.code}${event.reason ? `: ${event.reason}` : ''}）。部屋IDを使って再接続してください。`;
-      setRoomMessage(detail);
-    }
+    socket = null; clearSocketTimers();
+    if (online && !gameEnded && event.reason !== 'room-cleaned' && event.reason !== 'room-expired') scheduleOnlineReconnect(code, token);
+    else if (online && !gameEnded) setRoomMessage('部屋が終了しました。');
   });
   ws.addEventListener('error', event => {
     if (socket !== ws) return;
     console.error('[egoism] WebSocket error', { room: code, readyState: ws.readyState, event });
-    setRoomMessage('接続に失敗しました。部屋IDと公開先の設定を確認してください。');
+    setRoomMessage('通信エラーが発生しました。再接続を試みます…');
   });
 }
 function disconnectOnline() {
   online = false;
-  if (socket) { try { socket.close(); } catch {} socket = null; }
+  if (reconnectTimer) clearTimeout(reconnectTimer); reconnectTimer = null;
+  clearSocketTimers(); reconnectAttempts = 0;
+  if (socket) { const ws = socket; socket = null; try { ws.close(1000, 'client-disconnect'); } catch {} }
   lastServerState = null; matchDeadline = questionDeadline = 0;
   if (clockTimer) clearInterval(clockTimer); clockTimer = null;
 }
@@ -630,7 +693,7 @@ function applyServerState(state) {
   const visiblePattern = state.ended ? '' : currentPattern;
   $('pattern-desktop').textContent = visiblePattern; $('pattern-mobile').textContent = visiblePattern; if ($('pattern-mobile-below')) $('pattern-mobile-below').textContent = visiblePattern;
   $('answer').disabled = !!state.ended; $('pass-button').disabled = !!state.ended;
-  if (state.questionId !== lastQuestionId) { lastQuestionId = state.questionId; animateQuestionText(); $('answer').value = ''; }
+  if (state.questionId !== lastQuestionId) { lastQuestionId = state.questionId; animateQuestionText(); $('answer').value = ''; answerSubmissionPending = false; }
   updateBoard(oldVisualPosition, oldVisualPosition !== position);
   if (state.lastSuccess) {
     const key = `${state.lastSuccess.reading}:${state.lastSuccess.questionId}`;
@@ -727,15 +790,36 @@ $('create-room').addEventListener('click', createOnlineRoom);
 $('copy-room').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('room-code').textContent); setRoomMessage('部屋IDをコピーしました。'); } catch { setRoomMessage('部屋ID：' + $('room-code').textContent); } });
 $('join-room').addEventListener('click', joinOnlineRoom);
 $('preview-battle').addEventListener('click', startDemo);
-$('answer').addEventListener('input', e => {
-  if (e.isComposing) return;
+$('answer').addEventListener('compositionstart', () => { answerComposing = true; });
+$('answer').addEventListener('compositionend', e => {
+  answerComposing = false;
+  lastCompositionEnd = Date.now();
   const el = e.target, start = el.selectionStart, cleaned = normalizeInput(el.value);
   if (cleaned !== el.value) { el.value = cleaned; try { el.setSelectionRange(Math.min(start, cleaned.length), Math.min(start, cleaned.length)); } catch {} }
 });
+$('answer').addEventListener('input', e => {
+  if (answerComposing || e.isComposing) return;
+  const el = e.target, start = el.selectionStart, cleaned = normalizeInput(el.value);
+  if (cleaned !== el.value) { el.value = cleaned; try { el.setSelectionRange(Math.min(start, cleaned.length), Math.min(start, cleaned.length)); } catch {} }
+});
+$('answer').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (answerComposing || e.isComposing || e.keyCode === 229)) {
+    e.preventDefault(); e.stopPropagation();
+  }
+});
 $('answer-form').addEventListener('submit', e => {
-  e.preventDefault(); const input = $('answer'), answer = normalizeInput(input.value.trim());
-  if (online) sendOnline('answer', { word: answer, questionId: lastServerState?.questionId }); else acceptAnswer(answer, 'red');
-  input.value = ''; if (!gameEnded) input.focus({ preventScroll: true });
+  e.preventDefault();
+  if (answerComposing || $('answer').matches(':disabled')) return;
+  const input = $('answer'), answer = normalizeInput(input.value.trim());
+  if (!answer || answerSubmissionPending) return;
+  if (online) {
+    if (sendOnline('answer', { word: answer, questionId: lastServerState?.questionId })) answerSubmissionPending = true;
+    // Keep the text until the server confirms a new question; invalid answers remain editable.
+  } else {
+    acceptAnswer(answer, 'red');
+    if (currentPattern === '') input.value = '';
+  }
+  if (!gameEnded) input.focus({ preventScroll: true });
 });
 $('pass-button').addEventListener('click', () => {
   if (online) sendOnline('pass', { questionId: lastServerState?.questionId });
@@ -744,14 +828,11 @@ $('pass-button').addEventListener('click', () => {
 });
 $('opponent-test').addEventListener('click', () => { if (!online) acceptAnswer(currentAnswer, 'blue'); if (!gameEnded) $('answer').focus({ preventScroll: true }); });
 $('rematch').addEventListener('click', () => { if (online) { if (lastServerState?.ended) { sendOnline('rematch'); $('rematch').disabled = true; $('rematch').textContent = '再戦を待っています…'; $('end-detail').textContent = '再戦を申し込みました。相手が押すのを待っています。'; } } else startDemo(); });
-document.addEventListener('keydown', e => {
-  if (!$('battle').classList.contains('active') || gameEnded || e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
-  const input = $('answer'); if (document.activeElement !== input && !e.target.matches('input,select,textarea,button')) input.focus({ preventScroll: true });
-});
+// Do not steal focus from the first keypress: browsers do not replay that key after focus changes.
 $('battle').addEventListener('click', e => {
   if (e.target.closest('button') || e.target.closest('input') || !$('end-overlay').classList.contains('hidden')) return;
   $('answer').focus({ preventScroll: true });
 });
 $('answer').addEventListener('blur', () => {
-  if ($('battle').classList.contains('active') && !gameEnded && document.activeElement === document.body) requestAnimationFrame(() => $('answer').focus({ preventScroll: true }));
+  // Do not steal focus during IME candidate selection or mobile keyboard transitions.
 });
