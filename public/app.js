@@ -59,28 +59,13 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
 }));
 
 let homeDriftStarted = false;
-function animateHomeTitle() {
-  const title = document.querySelector('.home-title');
-  if (!title || title.dataset.letterAnimated === 'true') return;
-  title.dataset.letterAnimated = 'true';
-  const chars = Array.from(title.textContent);
-  title.replaceChildren();
-  chars.forEach((character, index) => {
-    const glyph = document.createElement('span');
-    glyph.textContent = character;
-    glyph.className = 'home-title-glyph';
-    glyph.style.setProperty('--glyph-index', index);
-    if (character === '。') glyph.classList.add('title-period');
-    title.append(glyph);
-  });
-}
-
 async function initHomeWordDrift() {
   const layer = $('home-word-drift');
   if (!layer || !dictionary || homeDriftStarted || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   homeDriftStarted = true;
-  animateHomeTitle();
   await loadMeaningDictionary();
+
+  // v28: prepare a compact pool of 500 unique display forms.
   const keys = Object.keys(dictionary);
   const pool = [];
   const seenForms = new Set();
@@ -106,85 +91,96 @@ async function initHomeWordDrift() {
       if (!meaning) continue;
       seenForms.add(form);
       pool.push({ reading, form, meaning });
-      if (pool.length % 100 === 0) await new Promise(resolve => requestAnimationFrame(resolve));
     }
   }
+  if (!pool.length) return;
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  if (!pool.length) return;
+
+  // Use a loose grid of slots. A slot is not reused until its current word disappears.
+  const columns = window.matchMedia('(max-width: 640px)').matches ? 3 : 4;
+  const rows = 3;
+  const slots = Array.from({ length: columns * rows }, (_, i) => ({
+    x: ((i % columns) + 0.5) * 100 / columns,
+    y: (Math.floor(i / columns) + 0.5) * 100 / rows
+  }));
+  const occupied = new Set();
   let index = 0;
-  const occupied = [];
+  let lastSlot = -1;
   const spawn = () => {
     if (!layer.isConnected || !$('home')?.classList.contains('active')) {
       window.setTimeout(spawn, 500);
       return;
     }
-    const data = pool[index];
-    index = (index + 1) % pool.length;
-    if (index === 0) {
+    const available = slots.map((_, i) => i).filter(i => !occupied.has(i));
+    if (!available.length) {
+      window.setTimeout(spawn, 500);
+      return;
+    }
+    let slotIndex = available[Math.floor(Math.random() * available.length)];
+    if (available.length > 1 && slotIndex === lastSlot) slotIndex = available[(available.indexOf(slotIndex) + 1) % available.length];
+    lastSlot = slotIndex;
+    occupied.add(slotIndex);
+
+    const data = pool[index++];
+    if (index >= pool.length) {
+      index = 0;
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }
     }
+    const slot = slots[slotIndex];
     const item = document.createElement('span');
     const layout = Math.random();
-    const vertical = layout < 0.25;
-    const lShape = layout >= 0.25 && layout < 0.43;
-    const variedLetters = Math.random() < 0.2;
-    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}${variedLetters ? ' varied-letters' : ''}`;
-    let x = 8 + Math.random() * 78;
-    let y = 10 + Math.random() * 72;
-    for (let attempt = 0; attempt < 18; attempt++) {
-      const candidateX = 8 + Math.random() * 78;
-      const candidateY = 10 + Math.random() * 72;
-      if (occupied.every(pos => Math.hypot((candidateX - pos.x) * 0.75, candidateY - pos.y) > 22)) {
-        x = candidateX; y = candidateY; break;
-      }
-    }
-    occupied.push({ x, y });
-    if (occupied.length > 24) occupied.shift();
-    item.style.left = `${x}%`;
-    item.style.top = `${y}%`;
-    item.style.setProperty('--word-size', `${20 + Math.random() * 26}px`);
-    item.style.setProperty('--meaning-size', `${10 + Math.random() * 7}px`);
-    item.style.setProperty('--letter-gap', `${0.16 + Math.random() * 0.38}em`);
-    item.style.setProperty('--drift-opacity', `${0.2 + Math.random() * 0.22}`);
-    item.style.setProperty('--drift-x', `${(Math.random() - 0.5) * 3}vw`);
-    item.style.setProperty('--drift-y', `${(Math.random() - 0.5) * 3}vh`);
+    const vertical = layout < 0.24;
+    const wordOnly = layout >= 0.24 && layout < 0.38;
+    const meaningOnly = layout >= 0.38 && layout < 0.49;
+    const lShape = layout >= 0.49 && layout < 0.70;
+    const variedLetters = Math.random() < 0.20;
+    const meaningDelay = 0.4 + Math.random() * 0.2;
+    const startGap = 0.12 + Math.random() * 0.2;
+    const angleX = (50 - slot.x) * 0.035;
+    const angleY = (50 - slot.y) * 0.035;
+    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}${wordOnly ? ' word-only' : ''}${meaningOnly ? ' meaning-only' : ''}${variedLetters ? ' varied-letters' : ''}`;
+    item.style.setProperty('--slot-x', `${slot.x}%`);
+    item.style.setProperty('--slot-y', `${slot.y}%`);
+    item.style.setProperty('--drift-x', `${angleX}vw`);
+    item.style.setProperty('--drift-y', `${angleY}vh`);
+    item.style.setProperty('--meaning-delay', `${meaningDelay}s`);
+    item.style.setProperty('--letter-gap-start', `${startGap}em`);
+    item.style.setProperty('--word-size', `${22 + Math.random() * 20}px`);
+    item.style.setProperty('--meaning-size', `${11 + Math.random() * 5}px`);
+    item.style.setProperty('--drift-opacity', `${0.24 + Math.random() * 0.18}`);
+
     const word = document.createElement('strong');
     if (variedLetters) {
       for (const character of Array.from(data.form)) {
         const glyph = document.createElement('span');
         glyph.textContent = character;
-        glyph.style.fontSize = `${0.72 + Math.random() * 0.58}em`;
+        glyph.style.fontSize = `${0.76 + Math.random() * 0.48}em`;
         glyph.style.display = 'inline-block';
-        glyph.style.transform = `translateY(${Math.random() * 5 - 2.5}px)`;
+        glyph.style.transform = `translateY(${Math.random() * 4 - 2}px)`;
         word.append(glyph);
       }
     } else word.textContent = data.form;
     const definition = document.createElement('small');
     definition.textContent = data.meaning;
-    definition.setAttribute('aria-hidden', 'true');
-    item.append(word);
+    if (wordOnly) item.append(word);
+    else if (meaningOnly) item.append(definition);
+    else item.append(word, definition);
     layer.append(item);
-    requestAnimationFrame(() => item.classList.add('settled'));
-    const meaningDelay = 500 + Math.random() * 6500;
-    window.setTimeout(() => {
-      if (!item.isConnected) return;
-      item.append(definition);
-      item.classList.add('has-meaning');
-      window.setTimeout(() => {
-        if (!item.isConnected) return;
-        item.classList.add('ink-fade');
-        window.setTimeout(() => item.remove(), 1500);
-      }, 2000);
-    }, meaningDelay);
-    window.setTimeout(spawn, 400 + Math.random() * 5600);
+    item.addEventListener('animationend', event => {
+      if (event.target !== item || event.animationName !== 'driftWordLife') return;
+      occupied.delete(slotIndex);
+      item.remove();
+    });
+    window.setTimeout(spawn, 400 + Math.random() * 200);
   };
-  window.setTimeout(spawn, 1800);
+  // Wait for the title's character-by-character entrance before starting the word field.
+  window.setTimeout(spawn, 2050);
 }
 
 async function loadDictionary() {
