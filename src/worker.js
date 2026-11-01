@@ -116,7 +116,7 @@ export class GameRoom {
         config: normalizeConfig(input.config), hostToken: input.hostToken,
         players: { red: { token: input.hostToken, connected: false }, blue: { token: null, connected: false } },
         started: false, ended: false, inOvertime: false, position: 3,
-        pattern: '', answer: '', questionId: 0, history: [], lastSuccess: null, passed: [],
+        pattern: '', answer: '', questionId: 0, history: [], lastSuccess: null, passed: [], solutionCount: 0,
         matchDeadline: 0, questionDeadline: 0, result: null, usedWords: [], usedAnswers: [], rematchVotes: { red: false, blue: false }
       };
       await this.ctx.storage.put('room', this.room);
@@ -178,52 +178,60 @@ export class GameRoom {
   makeQuestion(index) {
     const room = this.room;
     const used = new Set([...(room.usedWords || []), ...(room.usedAnswers || [])]);
-    const levels = room.config.difficulty === 'unlimited'
-      ? ['beginner', 'intermediate', 'advanced']
-      : [room.config.difficulty];
     const pools = [];
     let total = 0;
-    for (const level of levels) {
-      for (let length = room.config.lengthMin; length <= room.config.lengthMax; length++) {
+    for (let length = room.config.lengthMin; length <= room.config.lengthMax; length++) {
+      for (const level of ['beginner', 'intermediate', 'advanced']) {
         const pool = index[level]?.[String(length)] || [];
         if (pool.length) { pools.push({ words: pool, start: total, end: total + pool.length }); total += pool.length; }
       }
     }
     if (!total) return false;
-    // Pick uniformly from pre-grouped pools without scanning nearly one million readings per turn.
-    let answer = '';
-    const attempts = Math.min(100, total);
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      const offset = Math.floor(Math.random() * total);
-      const pool = pools.find(item => offset >= item.start && offset < item.end);
-      const candidate = pool.words[offset - pool.start];
-      if (!used.has(candidate)) { answer = candidate; break; }
-    }
-    // Only scan as a fallback when random attempts collide with previously used words.
-    if (!answer) {
-      outer: for (const pool of pools) {
-        for (const candidate of pool.words) {
-          if (!used.has(candidate)) { answer = candidate; break outer; }
-        }
-      }
-    }
-    if (!answer) return false;
-    room.answer = answer;
-    room.usedWords.push(answer);
-    const answerChars = [...answer];
     const revealLow = Math.min(room.config.revealedMin, room.config.revealedMax);
     const revealHigh = Math.max(room.config.revealedMin, room.config.revealedMax);
-    const count = Math.min(answerChars.length, revealLow + Math.floor(Math.random() * (revealHigh - revealLow + 1)));
-    const indexes = answerChars.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, count);
-    const pattern = [...'〇'.repeat(answerChars.length)];
-    indexes.forEach(i => pattern[i] = answerChars[i]);
-    room.pattern = pattern.join('');
+    const requested = room.config.difficulty || 'unlimited';
+    let selected = null, selectedPattern = '', selectedCount = 0, bestDistance = Infinity;
+    for (let attempt = 0; attempt < 150; attempt++) {
+      const offset = Math.floor(Math.random() * total);
+      const pool = pools.find(item => offset >= item.start && offset < item.end);
+      const answer = pool.words[offset - pool.start];
+      if (used.has(answer)) continue;
+      const chars = [...answer];
+      const revealCount = Math.min(chars.length, requested === 'advanced' ? revealHigh : revealLow + Math.floor(Math.random() * (revealHigh - revealLow + 1)));
+      const indexes = chars.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, revealCount);
+      const mask = [...'〇'.repeat(chars.length)];
+      indexes.forEach(i => mask[i] = chars[i]);
+      const pattern = mask.join('');
+      const count = countPatternSolutions(index, pattern, used, requested === 'advanced' ? 5 : 20);
+      const tier = count >= 20 ? 'beginner' : count >= 5 ? 'intermediate' : count >= 1 ? 'advanced' : 'none';
+      const distance = requested === 'unlimited' ? 0 : requested === tier ? 0 : requested === 'beginner' ? Math.max(0, 20 - count) : requested === 'intermediate' ? (count < 5 ? 5 - count : count - 19) : Math.max(0, count - 4);
+      if (distance < bestDistance) { selected = answer; selectedPattern = pattern; selectedCount = count; bestDistance = distance; }
+      if (requested === 'unlimited' || requested === tier) break;
+    }
+    // The chosen answer is always itself a valid solution; this fallback also avoids a no-solution pattern
+    // if every random probe happened to collide with words already used in the match.
+    if (!selected || selectedCount < 1) {
+      outer: for (const pool of pools) for (const answer of pool.words) {
+        if (used.has(answer)) continue;
+        const chars = [...answer];
+        const mask = [...'〇'.repeat(chars.length)];
+        const count = countPatternSolutions(index, mask.join(''), used, requested === 'advanced' ? 5 : 20);
+        if (count > 0) { selected = answer; selectedPattern = mask.join(''); selectedCount = count; break outer; }
+      }
+    }
+    if (!selected || selectedCount < 1) return false;
+    // Store the candidate count (capped at 20) for an accurate result-screen hint.
+    selectedCount = countPatternSolutions(index, selectedPattern, used, 20);
+    if (selectedCount < 1) return false;
+    room.answer = selected;
+    room.usedWords.push(selected);
+    room.pattern = selectedPattern;
+    room.solutionCount = selectedCount;
     room.questionId += 1;
     room.passed = [];
     room.questionDeadline = room.config.questionTime > 0 ? Date.now() + room.config.questionTime * 1000 : 0;
     return true;
   }
-
   endForWordExhaustion() {
     this.room.ended = true;
     this.room.answer = '';
@@ -251,7 +259,7 @@ export class GameRoom {
         room.rematchVotes[role] = true;
         if (room.rematchVotes.red && room.rematchVotes.blue) {
           room.started = false; room.ended = false; room.inOvertime = false; room.position = 3;
-          room.pattern = ''; room.answer = ''; room.questionId = 0; room.history = []; room.lastSuccess = null; room.passed = [];
+          room.pattern = ''; room.answer = ''; room.questionId = 0; room.history = []; room.lastSuccess = null; room.passed = []; room.solutionCount = 0;
           room.matchDeadline = 0; room.questionDeadline = 0; room.result = null; room.usedWords = []; room.usedAnswers = [];
           room.rematchVotes = { red: false, blue: false };
           await this.startMatch(); await this.broadcast();
@@ -312,20 +320,21 @@ export class GameRoom {
     const pools = ['beginner', 'intermediate', 'advanced'].map(level => index[level]?.[String(length)] || []);
     const candidates = [];
     const seen = new Set();
-    // Random probing is sufficient for the small optional hint list and avoids scanning an entire length bucket.
-    let total = pools.reduce((sum, pool) => sum + pool.length, 0);
-    for (let attempt = 0; attempt < Math.min(6000, total * 2) && candidates.length < 5; attempt++) {
+    const used = new Set([...(room.usedWords || []), ...(room.usedAnswers || [])]);
+    // Include the generated answer first: every emitted question is guaranteed to have at least one solution.
+    if (room.answer && matchesPattern(room.answer, room.pattern)) { candidates.push(room.answer); seen.add(room.answer); used.delete(room.answer); }
+    const total = pools.reduce((sum, pool) => sum + pool.length, 0);
+    for (let attempt = 0; attempt < Math.min(12000, total * 2) && candidates.length < 5; attempt++) {
       const offset = Math.floor(Math.random() * total);
       let cursor = offset, word = '';
       for (const pool of pools) {
         if (cursor < pool.length) { word = pool[cursor]; break; }
         cursor -= pool.length;
       }
-      if (word && !seen.has(word) && matchesPattern(word, room.pattern)) { candidates.push(word); seen.add(word); }
+      if (word && !used.has(word) && !seen.has(word) && matchesPattern(word, room.pattern)) { candidates.push(word); seen.add(word); }
     }
-    room.history.push({ unanswered: true, pattern: room.pattern, reason, candidates, who: 'none', word: '未回答の問題' });
+    room.history.push({ unanswered: true, pattern: room.pattern, reason, candidates, solutionCount: room.solutionCount || 1, who: 'none', word: '未回答の問題' });
   }
-
   async alarm() {
     const room = await this.loadRoom();
     if (!room) return;
@@ -365,7 +374,7 @@ export class GameRoom {
     return {
       config: r.config, players: { red: { connected: r.players.red.connected }, blue: { connected: r.players.blue.connected } },
       started: r.started, ended: r.ended, inOvertime: r.inOvertime, position: r.position, pattern: r.pattern,
-      questionId: r.questionId, history: r.history, lastSuccess: r.lastSuccess, passed: r.passed,
+      questionId: r.questionId, history: r.history, lastSuccess: r.lastSuccess, passed: r.passed, solutionCount: r.solutionCount || 0,
       matchDeadline: r.matchDeadline, questionDeadline: r.questionDeadline, result: r.result, rematchVotes: r.rematchVotes || { red: false, blue: false }
     };
   }
@@ -434,6 +443,20 @@ function normalizeConfig(input = {}) {
     overtime: input.overtime === 'draw' ? 'draw' : 'sudden',
     difficulty: ['beginner', 'intermediate', 'advanced', 'unlimited'].includes(input.difficulty) ? input.difficulty : 'intermediate'
   };
+}
+function countPatternSolutions(index, pattern, used, limit = 20) {
+  const length = [...pattern].length;
+  let count = 0;
+  for (const level of ['beginner', 'intermediate', 'advanced']) {
+    const words = index[level]?.[String(length)] || [];
+    for (const word of words) {
+      if (!used.has(word) && matchesPattern(word, pattern)) {
+        count++;
+        if (count >= limit) return count;
+      }
+    }
+  }
+  return count;
 }
 function matchesPattern(word, pattern) {
   const chars = [...word], mask = [...pattern];
