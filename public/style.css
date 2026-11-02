@@ -621,3 +621,91 @@ main { max-width:none; padding-left:0; padding-right:0; }
 .drift-word.is-vertical strong,
 .drift-word.is-vertical small,
 .drift-word.is-lshape small { text-align:center; }
+
+
+/* v30: larger home typography, centered contraction, vertical-side meanings and T layouts. */
+.masthead { border-bottom:0; }
+.colophon { border-top:0; }
+#home.screen, #settings.screen, #battle.screen {
+  border-top:1px solid var(--ink);
+  border-bottom:1px solid var(--ink);
+}
+.drift-word strong {
+  font-size:var(--word-size,40px);
+  letter-spacing:var(--letter-gap,.16em);
+  animation:driftLetterTighten 4s ease-in-out forwards;
+}
+.drift-word small {
+  letter-spacing:var(--letter-gap,.16em);
+  animation:driftTextIn .48s ease-out 1s forwards;
+  width:var(--meaning-width,220px);
+  max-width:none;
+}
+.drift-word.is-vertical {
+  flex-direction:row;
+  align-items:flex-start;
+  gap:var(--meaning-gap,8px);
+}
+.drift-word.is-vertical strong {
+  writing-mode:vertical-rl;
+  text-orientation:mixed;
+  max-height:210px;
+}
+.drift-word.is-vertical small {
+  writing-mode:horizontal-tb;
+  max-width:var(--meaning-width,220px);
+  margin-top:13px;
+  align-self:flex-start;
+}
+.drift-word.is-vertical.meaning-left small { order:-1; }
+.drift-word.is-vertical.meaning-right small { order:2; }
+.drift-word.is-lshape { column-gap:var(--meaning-gap,8px); }
+.drift-word.is-lshape small { letter-spacing:var(--letter-gap,.16em); }
+/* T-A: horizontal word on top, vertical meaning below (20% of T layouts). */
+.drift-word.is-tshape {
+  display:grid;
+  grid-template-columns:auto;
+  grid-template-rows:auto auto;
+  justify-items:center;
+  align-items:center;
+  gap:7px;
+  width:max-content;
+}
+.drift-word.is-tshape strong,
+.drift-word.is-tshape small {
+  grid-column:1;
+  text-align:center;
+  justify-self:center;
+}
+.drift-word.is-tshape strong { grid-row:1; }
+.drift-word.is-tshape small { grid-row:2; margin:0; }
+.drift-word.is-t-word-horizontal strong {
+  writing-mode:horizontal-tb;
+  white-space:nowrap;
+}
+.drift-word.is-t-word-horizontal small {
+  writing-mode:vertical-rl;
+  text-orientation:mixed;
+  width:auto;
+  max-width:none;
+  max-height:170px;
+}
+/* T-B: vertical word on top, horizontal meaning below (80% of T layouts). */
+.drift-word.is-t-word-vertical strong {
+  writing-mode:vertical-rl;
+  text-orientation:mixed;
+  max-height:180px;
+}
+.drift-word.is-t-word-vertical small {
+  writing-mode:horizontal-tb;
+  width:var(--meaning-width,220px);
+  max-width:none;
+}
+@media(max-width:640px) {
+  .drift-word strong { font-size:var(--word-size,40px); }
+  .drift-word.is-vertical small { max-width:min(var(--meaning-width,220px),42vw); }
+  .drift-word.is-t-word-vertical small { width:min(var(--meaning-width,220px),60vw); }
+}
+@media(prefers-reduced-motion:reduce) {
+  .drift-word strong,.drift-word small { animation:none; }
+}

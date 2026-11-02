@@ -136,19 +136,26 @@ async function initHomeWordDrift() {
     const slotKey = `${slot.x}-${slot.y}`;
     const item = document.createElement('span');
     const layout = Math.random();
-    const vertical = layout < 0.5;
-    const lShape = layout >= 0.8;
-    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}`;
+    // Preserve the earlier layout balance while reserving 20% for the new T layouts.
+    // Within T layouts: 20% horizontal-word/vertical-meaning, 80% vertical-word/horizontal-meaning.
+    const vertical = layout < 0.40;
+    const horizontal = layout >= 0.40 && layout < 0.64;
+    const lShape = layout >= 0.64 && layout < 0.80;
+    const tShape = layout >= 0.80;
+    const verticalMeaningLeft = Math.random() < 0.90;
+    const tWordHorizontal = tShape && Math.random() < 0.20;
+    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}${tShape ? ' is-tshape' : ''}${tShape ? (tWordHorizontal ? ' is-t-word-horizontal' : ' is-t-word-vertical') : ''}${vertical ? (verticalMeaningLeft ? ' meaning-left' : ' meaning-right') : ''}`;
     item.style.left = `${slot.x}%`;
     item.style.top = `${slot.y}%`;
     item.style.setProperty('--drift-x', `${(50 - slot.x) * 0.035}vw`);
     item.style.setProperty('--drift-y', `${(50 - slot.y) * 0.035}vh`);
     item.style.setProperty('--drift-duration', '4s');
-    item.style.setProperty('--word-size', `${19 + Math.random() * 15}px`);
+    item.style.setProperty('--word-size', `${27 + Math.random() * 27}px`);
     item.style.setProperty('--meaning-size', `${11 + Math.random() * 4}px`);
     const letterGap = `${0.10 + Math.random() * 0.22}em`;
     item.style.setProperty('--letter-gap', letterGap);
     item.style.setProperty('--meaning-width', `${220 + Math.random() * 160}px`);
+    item.style.setProperty('--meaning-gap', `${Math.min(16, Math.max(3, data.meaning.length * 0.22))}px`);
     item.style.setProperty('--drift-opacity', `${0.24 + Math.random() * 0.2}`);
 
     const word = document.createElement('strong');
