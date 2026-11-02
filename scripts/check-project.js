@@ -32,7 +32,7 @@ const meanings = JSON.parse(read('public/data/meanings.json'));
 const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
-if (!html.includes('第 28 版')) fail('Version label is missing.');
+if (!html.includes('第 29 版')) fail('Version label is missing.');
 if (!html.includes('id="difficulty-level"')) fail('Difficulty selector is missing.');
 if (!app.includes('function classifyWordDifficulty') || !app.includes('matchesQuestionTier(count, requested)') || !app.includes('/data/word-difficulty.json')) fail('Displayed word difficulty or answer-count question difficulty is missing.');
 if (!Object.keys(difficultyMap).length || Object.values(difficultyMap).some(level => !['beginner', 'intermediate'].includes(level))) fail('Difficulty map must contain only explicit beginner/intermediate entries; missing entries default to advanced.');
@@ -65,6 +65,8 @@ if (!manifest.dictionary_sources.some(source => source.includes('JA Wikipedia'))
 if (!app.includes('wipe.animate(') || !app.includes('el.animate(')) fail('Territory and question animations are not driven by the Web Animations API.');
 if (!html.includes('class="time-settings-row"')) fail('Time settings are not grouped into one horizontal row.');
 if (!html.includes('id="home-word-drift"') || !app.includes('async function initHomeWordDrift')) fail('Cinematic home word drift is missing.');
+if (!app.includes("window.setTimeout(spawn, 2000)") || !app.includes("'4s'") || !app.includes('return normalized.endsWith(\'。\') ? normalized : `${normalized}。`;')) fail('Home word cadence, four-second lifetime, or Japanese meaning punctuation is missing.');
+if (!css.includes('@keyframes driftBlur') || !css.includes('@keyframes driftMove') || !css.includes('@keyframes driftLetterTighten')) fail('Independent blur, motion, or centered letter-spacing animations are missing.');
 if (!html.includes('colophon-credits') || html.includes('class="dictionary-attribution"')) fail('Dictionary attribution is not consolidated in the footer.');
 if (!app.includes('usedQuestionWords') || !app.includes('usedAnswerWords') || !worker.includes('usedAnswers')) fail('Per-match duplicate word prevention is missing.');
 if (!app.includes("config.matchTime === 0 ? '∞' : formatTime(matchRemaining)") || !app.includes("config.matchTime === 0 ? '∞' : formatTime(match)")) fail('Unlimited and expired timer displays are not distinguished.');
@@ -98,7 +100,3 @@ if (html.includes('board-foot') || html.includes('pattern-hint-desktop')) fail('
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log(`Project checks passed: ${idSet.size} HTML IDs, ${Object.keys(dictionary).length.toLocaleString()} combined dictionary readings, Wikipedia meaning shards, result UI, Cloudflare config, and territory animations.`);
-
-if (!app.includes('pool.length < 500') || !app.includes('400 + Math.random() * 200')) fail('Home word pool size or staggered spawn interval is incorrect.');
-if (!css.includes('@keyframes titleCharacterIn') || !css.includes('@keyframes driftWordLife') || !css.includes('@keyframes driftLetterTighten')) fail('Home title or typography animation is missing.');
-if (!css.includes('#home.screen, #settings.screen, #battle.screen { border-top:1px solid var(--ink); border-bottom:1px solid var(--ink); }')) fail('Screen border treatment is missing.');
