@@ -32,7 +32,7 @@ const meanings = JSON.parse(read('public/data/meanings.json'));
 const manifest = JSON.parse(read('public/data/DICTIONARY-MANIFEST.json'));
 if (!meanings['ほご']?.['保護']?.length) fail('Wiktionary meaning sample entry ほご → 保護 is missing.');
 if (!html.includes('id="revealed-min"') || !html.includes('id="revealed-max"')) fail('Public-character range slider is missing.');
-if (!html.includes('第 29 版')) fail('Version label is missing.');
+if (!html.includes('第 30 版')) fail('Version label is missing.');
 if (!html.includes('id="difficulty-level"')) fail('Difficulty selector is missing.');
 if (!app.includes('function classifyWordDifficulty') || !app.includes('matchesQuestionTier(count, requested)') || !app.includes('/data/word-difficulty.json')) fail('Displayed word difficulty or answer-count question difficulty is missing.');
 if (!Object.keys(difficultyMap).length || Object.values(difficultyMap).some(level => !['beginner', 'intermediate'].includes(level))) fail('Difficulty map must contain only explicit beginner/intermediate entries; missing entries default to advanced.');
