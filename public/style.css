@@ -709,3 +709,55 @@ main { max-width:none; padding-left:0; padding-right:0; }
 @media(prefers-reduced-motion:reduce) {
   .drift-word strong,.drift-word small { animation:none; }
 }
+
+/* v31: restore visible home words and refine definition alignment. */
+.drift-word strong {
+  animation:
+    driftTextIn .48s ease-out .04s forwards,
+    driftLetterTighten 4s ease-in-out forwards;
+}
+.drift-word.is-vertical {
+  align-items:flex-start;
+}
+.drift-word.is-vertical small {
+  margin-top:0;
+  align-self:flex-start;
+  text-align:left;
+}
+.drift-word:not(.is-vertical):not(.is-lshape):not(.is-tshape) small {
+  text-align:left;
+}
+.drift-word.is-lshape small {
+  align-self:start;
+  justify-self:start;
+  text-align:left;
+}
+.drift-word.is-tshape,
+.drift-word.is-tshape strong,
+.drift-word.is-tshape small {
+  text-align:center;
+  justify-items:center;
+}
+
+/* Meaning and difficulty appear together only after their data is ready. */
+.success-banner .difficulty-badge,
+.success-banner .success-meaning {
+  opacity:0;
+  transition:opacity .42s ease;
+}
+.success-banner.details-ready .difficulty-badge,
+.success-banner.details-ready .success-meaning:not(.hidden) {
+  opacity:1;
+}
+.answer-row .pass-inline {
+  min-width:88px;
+  gap:8px;
+  flex:none;
+}
+@media(max-width:640px) {
+  .answer-row .pass-inline {
+    min-width:58px;
+    padding-left:9px;
+    padding-right:9px;
+  }
+}

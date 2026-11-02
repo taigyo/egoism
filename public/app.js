@@ -32,6 +32,7 @@ let heartbeatWatchdog = null;
 let reconnectAttempts = 0;
 let answerComposing = false;
 let lastCompositionEnd = 0;
+let doubleNCommitTimer = null;
 let answerSubmissionPending = false;
 let roomCode = '';
 let roomToken = '';
@@ -154,7 +155,7 @@ async function initHomeWordDrift() {
     item.style.setProperty('--meaning-size', `${11 + Math.random() * 4}px`);
     const letterGap = `${0.10 + Math.random() * 0.22}em`;
     item.style.setProperty('--letter-gap', letterGap);
-    item.style.setProperty('--meaning-width', `${220 + Math.random() * 160}px`);
+    item.style.setProperty('--meaning-width', `${Math.min(460, Math.max(220, 180 + data.meaning.length * 5))}px`);
     item.style.setProperty('--meaning-gap', `${Math.min(16, Math.max(3, data.meaning.length * 0.22))}px`);
     item.style.setProperty('--drift-opacity', `${0.24 + Math.random() * 0.2}`);
 
@@ -520,8 +521,24 @@ function renderGameHistory() {
         solutionCount = matches.length;
         unansweredCandidates = matches.slice(0, 5);
       }
+      forms.append(document.createTextNode('候補：'));
+      if (unansweredCandidates.length) {
+        unansweredCandidates.forEach((reading, candidateIndex) => {
+          if (candidateIndex) forms.append(document.createTextNode(' ・ '));
+          const link = document.createElement('a');
+          link.className = 'history-google-link';
+          link.textContent = reading;
+          link.href = `https://www.google.com/search?q=${encodeURIComponent(reading)}`;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.setAttribute('aria-label', `${reading}をGoogleで検索（新しいタブ）`);
+          forms.append(link);
+        });
+      } else {
+        forms.append(document.createTextNode('候補なし（辞書に一致する読みがありません）'));
+      }
       const countLabel = solutionCount ? `（${solutionCount >= 20 ? '20件以上' : `${solutionCount}件`}）` : '';
-      forms.textContent = `候補：${unansweredCandidates.join(' ・ ') || '候補なし（辞書に一致する読みがありません）'}${countLabel}`;
+      if (countLabel) forms.append(document.createTextNode(countLabel));
     } else {
       const candidates = [...new Set(entryForms)];
       const selectedForm = entry.selectedForm || chooseDisplayForm(candidates);
@@ -626,7 +643,7 @@ function endGame(title, detail) {
 let successMeaningRequest = 0;
 function clearSuccessDisplay() {
   successMeaningRequest++;
-  $('success-banner').classList.remove('show');
+  $('success-banner').classList.remove('show', 'details-ready');
   $('success-reading').textContent = '';
   $('success-forms').textContent = '';
   $('success-meaning').textContent = '';
@@ -654,19 +671,28 @@ async function chooseDisplayFormWithMeaning(reading, forms) {
 function showSuccess(word, formsOverride = null) {
   const forms = [...new Set(formsOverride?.length ? formsOverride : (dictionary?.[word] || []))];
   const requestId = ++successMeaningRequest;
-  $('success-reading').textContent = word;
-  $('success-forms').textContent = '表記候補を確認中…';
+  $('success-forms').textContent = '';
   const difficulty = $('success-difficulty');
-  difficulty.textContent = difficultyLabel(classifyWordDifficulty(word, forms));
-  difficulty.className = difficultyClass(classifyWordDifficulty(word, forms));
+  difficulty.textContent = '';
+  difficulty.className = 'difficulty-badge';
   const meaning = $('success-meaning');
   meaning.textContent = '';
   meaning.classList.add('hidden');
-  const banner = $('success-banner'); banner.classList.remove('show'); void banner.offsetWidth; banner.classList.add('show');
+  const banner = $('success-banner');
+  banner.classList.remove('show', 'details-ready');
+  void banner.offsetWidth;
+  banner.classList.add('show');
   chooseDisplayFormWithMeaning(word, forms).then(({ selectedForm, selectedMeaning }) => {
     if (requestId !== successMeaningRequest || $('success-reading').textContent !== word) return;
     $('success-forms').textContent = formatSelectedForm(forms, selectedForm);
-    if (selectedMeaning) { meaning.textContent = `→ ${selectedMeaning}`; meaning.classList.remove('hidden'); }
+    const level = classifyWordDifficulty(word, forms);
+    difficulty.textContent = difficultyLabel(level);
+    difficulty.className = difficultyClass(level);
+    if (selectedMeaning) {
+      meaning.textContent = `→ ${selectedMeaning}`;
+      meaning.classList.remove('hidden');
+    }
+    requestAnimationFrame(() => banner.classList.add('details-ready'));
   }).catch(error => console.error('正解語の意味表示に失敗しました', error));
 }
 function animateInvalidAnswer() {
@@ -1031,8 +1057,22 @@ $('answer').addEventListener('compositionend', e => {
 });
 $('answer').addEventListener('input', e => {
   if (answerComposing || e.isComposing) return;
-  const el = e.target, start = el.selectionStart, cleaned = normalizeInput(el.value);
+  const el = e.target;
+  clearTimeout(doubleNCommitTimer);
+  const start = el.selectionStart, cleaned = normalizeInput(el.value);
   if (cleaned !== el.value) { el.value = cleaned; try { el.setSelectionRange(Math.min(start, cleaned.length), Math.min(start, cleaned.length)); } catch {} }
+  // Keep a trailing nn pending briefly so nna/nni can still become んな/んに.
+  // If the user pauses after nn, commit it as ん automatically.
+  if (el.value.endsWith('nn')) {
+    const pendingValue = el.value;
+    doubleNCommitTimer = setTimeout(() => {
+      if (el.value !== pendingValue) return;
+      const caret = el.selectionStart;
+      const committed = normalizeInput(el.value, true);
+      el.value = committed;
+      try { el.setSelectionRange(Math.min(caret, committed.length), Math.min(caret, committed.length)); } catch {}
+    }, 450);
+  }
 });
 $('answer').addEventListener('keydown', e => {
   if (e.key === 'Enter' && (answerComposing || e.isComposing || e.keyCode === 229)) {
@@ -1057,7 +1097,6 @@ $('pass-button').addEventListener('click', () => {
   else { nextQuestion('パスしました。次の問題です。', 'パス'); }
   $('answer').focus({ preventScroll: true });
 });
-$('opponent-test').addEventListener('click', () => { if (!online) acceptAnswer(currentAnswer, 'blue'); if (!gameEnded) $('answer').focus({ preventScroll: true }); });
 $('rematch').addEventListener('click', () => { if (online) { if (lastServerState?.ended) { sendOnline('rematch'); $('rematch').disabled = true; $('rematch').textContent = '再戦を待っています…'; $('end-detail').textContent = '再戦を申し込みました。相手が押すのを待っています。'; } } else startDemo(); });
 $('answer').addEventListener('blur', () => {
   // Do not steal focus during IME candidate selection or mobile keyboard transitions.
