@@ -65,11 +65,11 @@ async function initHomeWordDrift() {
   homeDriftStarted = true;
   await loadMeaningDictionary();
 
-  // v28: prepare a compact pool of 500 unique display forms.
+  // v29: words and meanings are always paired; prepare up to 500 unique forms.
   const keys = Object.keys(dictionary);
   const pool = [];
   const seenForms = new Set();
-  const maxAttempts = Math.min(keys.length * 2, 350000);
+  const maxAttempts = Math.min(keys.length * 3, 300000);
   for (let attempt = 0; attempt < maxAttempts && pool.length < 500; attempt++) {
     const reading = keys[Math.floor(Math.random() * keys.length)];
     const forms = dictionary[reading] || [];
@@ -85,12 +85,14 @@ async function initHomeWordDrift() {
   if (pool.length < 500) {
     for (const reading of keys) {
       if (pool.length >= 500) break;
-      const form = (dictionary[reading] || []).find(item => !seenForms.has(item) && meaningDictionary?.[reading]?.[item]?.length);
-      if (!form) continue;
-      const meaning = pickRandomMeaning(reading, [form]);
-      if (!meaning) continue;
-      seenForms.add(form);
-      pool.push({ reading, form, meaning });
+      for (const form of (dictionary[reading] || [])) {
+        if (pool.length >= 500) break;
+        if (seenForms.has(form) || !meaningDictionary?.[reading]?.[form]?.length) continue;
+        const meaning = pickRandomMeaning(reading, [form]);
+        if (!meaning) continue;
+        seenForms.add(form);
+        pool.push({ reading, form, meaning });
+      }
     }
   }
   if (!pool.length) return;
@@ -99,31 +101,23 @@ async function initHomeWordDrift() {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
 
-  // Use a loose grid of slots. A slot is not reused until its current word disappears.
-  const columns = window.matchMedia('(max-width: 640px)').matches ? 3 : 4;
-  const rows = 3;
-  const slots = Array.from({ length: columns * rows }, (_, i) => ({
-    x: ((i % columns) + 0.5) * 100 / columns,
-    y: (Math.floor(i / columns) + 0.5) * 100 / rows
-  }));
+  // Keep active items apart; each slot is released when its four-second lifecycle ends.
+  const slots = [];
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 5; col++) slots.push({ x: 10 + col * 20, y: 15 + row * 23 });
+  }
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+  }
   const occupied = new Set();
   let index = 0;
-  let lastSlot = -1;
+  let slotCursor = 0;
   const spawn = () => {
     if (!layer.isConnected || !$('home')?.classList.contains('active')) {
       window.setTimeout(spawn, 500);
       return;
     }
-    const available = slots.map((_, i) => i).filter(i => !occupied.has(i));
-    if (!available.length) {
-      window.setTimeout(spawn, 500);
-      return;
-    }
-    let slotIndex = available[Math.floor(Math.random() * available.length)];
-    if (available.length > 1 && slotIndex === lastSlot) slotIndex = available[(available.indexOf(slotIndex) + 1) % available.length];
-    lastSlot = slotIndex;
-    occupied.add(slotIndex);
-
     const data = pool[index++];
     if (index >= pool.length) {
       index = 0;
@@ -132,55 +126,46 @@ async function initHomeWordDrift() {
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }
     }
-    const slot = slots[slotIndex];
+    let slot = null;
+    for (let tries = 0; tries < slots.length; tries++) {
+      const candidate = slots[slotCursor++ % slots.length];
+      const key = `${candidate.x}-${candidate.y}`;
+      if (!occupied.has(key)) { slot = candidate; occupied.add(key); break; }
+    }
+    if (!slot) { window.setTimeout(spawn, 500); return; }
+    const slotKey = `${slot.x}-${slot.y}`;
     const item = document.createElement('span');
     const layout = Math.random();
-    const vertical = layout < 0.24;
-    const wordOnly = layout >= 0.24 && layout < 0.38;
-    const meaningOnly = layout >= 0.38 && layout < 0.49;
-    const lShape = layout >= 0.49 && layout < 0.70;
-    const variedLetters = Math.random() < 0.20;
-    const meaningDelay = 0.4 + Math.random() * 0.2;
-    const startGap = 0.12 + Math.random() * 0.2;
-    const angleX = (50 - slot.x) * 0.035;
-    const angleY = (50 - slot.y) * 0.035;
-    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}${wordOnly ? ' word-only' : ''}${meaningOnly ? ' meaning-only' : ''}${variedLetters ? ' varied-letters' : ''}`;
-    item.style.setProperty('--slot-x', `${slot.x}%`);
-    item.style.setProperty('--slot-y', `${slot.y}%`);
-    item.style.setProperty('--drift-x', `${angleX}vw`);
-    item.style.setProperty('--drift-y', `${angleY}vh`);
-    item.style.setProperty('--meaning-delay', `${meaningDelay}s`);
-    item.style.setProperty('--letter-gap-start', `${startGap}em`);
-    item.style.setProperty('--word-size', `${22 + Math.random() * 20}px`);
-    item.style.setProperty('--meaning-size', `${11 + Math.random() * 5}px`);
-    item.style.setProperty('--drift-opacity', `${0.24 + Math.random() * 0.18}`);
+    const vertical = layout < 0.5;
+    const lShape = layout >= 0.8;
+    item.className = `drift-word${vertical ? ' is-vertical' : ''}${lShape ? ' is-lshape' : ''}`;
+    item.style.left = `${slot.x}%`;
+    item.style.top = `${slot.y}%`;
+    item.style.setProperty('--drift-x', `${(50 - slot.x) * 0.035}vw`);
+    item.style.setProperty('--drift-y', `${(50 - slot.y) * 0.035}vh`);
+    item.style.setProperty('--drift-duration', '4s');
+    item.style.setProperty('--word-size', `${19 + Math.random() * 15}px`);
+    item.style.setProperty('--meaning-size', `${11 + Math.random() * 4}px`);
+    const letterGap = `${0.10 + Math.random() * 0.22}em`;
+    item.style.setProperty('--letter-gap', letterGap);
+    item.style.setProperty('--meaning-width', `${220 + Math.random() * 160}px`);
+    item.style.setProperty('--drift-opacity', `${0.24 + Math.random() * 0.2}`);
 
     const word = document.createElement('strong');
-    if (variedLetters) {
-      for (const character of Array.from(data.form)) {
-        const glyph = document.createElement('span');
-        glyph.textContent = character;
-        glyph.style.fontSize = `${0.76 + Math.random() * 0.48}em`;
-        glyph.style.display = 'inline-block';
-        glyph.style.transform = `translateY(${Math.random() * 4 - 2}px)`;
-        word.append(glyph);
-      }
-    } else word.textContent = data.form;
+    word.textContent = data.form;
     const definition = document.createElement('small');
     definition.textContent = data.meaning;
-    if (wordOnly) item.append(word);
-    else if (meaningOnly) item.append(definition);
-    else item.append(word, definition);
+    item.append(word, definition);
     layer.append(item);
     item.addEventListener('animationend', event => {
-      if (event.target !== item || event.animationName !== 'driftWordLife') return;
-      occupied.delete(slotIndex);
+      if (event.animationName !== 'driftOpacity') return;
       item.remove();
+      occupied.delete(slotKey);
     });
-    window.setTimeout(spawn, 400 + Math.random() * 200);
+    window.setTimeout(spawn, 2000);
   };
-  // Wait for the title's character-by-character entrance before starting the word field.
-  window.setTimeout(spawn, 2050);
+  // The title and action arrive first; one paired word/meaning appears every two seconds.
+  window.setTimeout(spawn, 1650);
 }
 
 async function loadDictionary() {
@@ -261,7 +246,13 @@ function collectMeaningDefinitions(reading, forms) {
     definitions.push(...(meaningDictionary?.[reading]?.[form] || []));
     definitions.push(...(wikipediaMeaningDictionary?.[reading]?.[form] || []));
   }
-  return [...new Set(definitions.filter(value => typeof value === 'string' && value.trim()))];
+  return [...new Set(definitions
+    .filter(value => typeof value === 'string' && value.trim())
+    .map(value => {
+      const normalized = value.trim();
+      // Imported glosses are commonly stored as noun phrases without Japanese sentence punctuation.
+      return normalized.endsWith('。') ? normalized : `${normalized}。`;
+    }))];
 }
 function pickRandomMeaning(reading, forms) {
   const definitions = collectMeaningDefinitions(reading, forms);
